@@ -7,6 +7,10 @@ python .\batch_vc.py --list_file "D:\aisound\sound_data\小缘\数据集1\raw_cu
 
 python .\batch_vc.py --list_file "D:\aisound\sound_data\小东\xiaodong-55m.list" --ref_audio "D:\aisound\old\GPT-SoVITS\sample\晓辰\高亢\你干嘛非要这么干，难道这样做比较开心吗？.wav" --output_dir D:\aisound\sound_data\seedvc --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "晓辰东中"
 
+python .\batch_vc.py --list_file "D:\aisound\sound_data\京京2m\raw_cut.list" --ref_audio "D:\aisound\sound_data\refsounds\小果\你也喜欢枪啊？.wav"--output_dir D:\aisound\sound_data\seedvc --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "小果"
+
+
+python .\batch_vc.py --list_file "D:\aisound\sound_data\京京2m\raw_cut.list" --ref_audio "D:\aisound\sound_data\refsounds\小果\你也喜欢枪啊？.wav"--output_dir D:\aisound\sound_data\seedvc --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "小果"
 
 # 根据字幕转换
 python batch_vc_srt.py --audio "D:\aisound\sound_data\京京\raw_cut.wav" --srt "D:\aisound\sound_data\京京\raw_cut.srt" --ref_audio "D:\aisound\GPT-SoVITS\configs\refsounds\秋怡\有呀有呀他在写作业。.wav" --output "D:\aisound\sound_data\京京\raw_cut_output.wav" --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0
@@ -44,6 +48,8 @@ python train.py --config ./configs/presets/config_dit_mel_seed_uvit_whisper_smal
 
 python train.py --config ./configs/presets/config_dit_mel_seed_uvit_whisper_small_wavenet.yml --dataset-dir "D:\aisound\sound_data\晓辰60\raw_cut" --run-name "晓辰" --batch-size 2 --max-steps 1000 --max-epochs 1000 --save-every 500 --num-workers 0
 
+python train.py --config ./configs/presets/config_dit_mel_seed_uvit_whisper_small_wavenet.yml --dataset-dir "D:\aisound\sound_data\小缘\数据集1\raw_cut"--run-name "小缘" --batch-size 2 --max-steps 1000 --max-epochs 1000 --save-every 500 --num-workers 0
+
 
 ## 歌声训练
 
@@ -57,6 +63,7 @@ python app_vc.py --checkpoint "D:\aisound\seed-vc\runs\宝卿\ft_model.pth" --co
 python app_vc.py --checkpoint "D:\aisound\seed-vc\runs\福哥\ft_model.pth" --config "D:\aisound\seed-vc\runs\福哥\config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
 python app_vc.py --checkpoint "D:\aisound\seed-vc\runs\林志玲\ft_model.pth" --config "D:\aisound\seed-vc\runs\林志玲\config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
 python app_vc.py --checkpoint "D:\aisound\seed-vc\runs\晓辰\ft_model.pth" --config "D:\aisound\seed-vc\runs\晓辰\config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
+python app_vc.py --checkpoint "D:\aisound\seed-vc\runs\小缘\ft_model.pth" --config "D:\aisound\seed-vc\runs\小缘\config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
 
 
 ## 歌声推理
