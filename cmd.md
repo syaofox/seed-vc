@@ -12,6 +12,10 @@ python .\batch_vc.py --list_file "D:\aisound\sound_data\京京2m\raw_cut.list" -
 
 python .\batch_vc.py --list_file "D:\aisound\sound_data\京京2m\raw_cut.list" --ref_audio "D:\aisound\sound_data\refsounds\小果\你也喜欢枪啊？.wav"--output_dir D:\aisound\sound_data\seedvc --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "小果"
 
+python .\batch_vc.py --list_file "D:\aisound\sound_data\撩影trans\撩影.list" --ref_audio "D:\aisound\GPT-SoVITS\configs\roles\撩鸟\阿文冲上去阻拦直接被撂倒，但还是拼了命追出去，趁卢克不备一个飞扑，把枪撞飞。.wav" --output_dir D:\aisound\sound_data\seedvc --diffusion_steps 100 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "撩鸟"
+
+
+
 # 根据字幕转换
 python batch_vc_srt.py --audio "D:\aisound\sound_data\京京\raw_cut.wav" --srt "D:\aisound\sound_data\京京\raw_cut.srt" --ref_audio "D:\aisound\GPT-SoVITS\configs\refsounds\秋怡\有呀有呀他在写作业。.wav" --output "D:\aisound\sound_data\京京\raw_cut_output.wav" --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0
 
