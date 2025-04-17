@@ -258,4 +258,9 @@ if __name__ == "__main__":
     parser.add_argument("--enable-v2", action="store_true",
                         help="Enable V2 (Voice & Style Conversion)")
     args = parser.parse_args()
+    
+    # 如果没有启用任何版本，默认启用V1
+    if not (args.enable_v1 or args.enable_v2):
+        args.enable_v1 = True
+        
     main(args)

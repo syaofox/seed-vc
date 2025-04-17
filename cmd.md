@@ -12,7 +12,13 @@ python .\batch_vc.py --list_file "D:\aisound\sound_data\京京2m\raw_cut.list" -
 
 python .\batch_vc.py --list_file "D:\aisound\sound_data\京京2m\raw_cut.list" --ref_audio "D:\aisound\sound_data\refsounds\小果\你也喜欢枪啊？.wav"--output_dir D:\aisound\sound_data\seedvc --diffusion_steps 50 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "小果"
 
-python .\batch_vc.py --list_file "D:\aisound\sound_data\撩影trans\撩影.list" --ref_audio "D:\aisound\GPT-SoVITS\configs\roles\撩鸟\阿文冲上去阻拦直接被撂倒，但还是拼了命追出去，趁卢克不备一个飞扑，把枪撞飞。.wav" --output_dir D:\aisound\sound_data\seedvc --diffusion_steps 100 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --character "撩鸟"
+python .\batch_vc.py --list_file "D:\aisound\sound_data\撩影trans调整\撩影.list" --ref_audio "D:\downloads\0\调查作家玛德琳和她的魔术师朋友乔纳森，联手破获了多起离奇案件，在侦探圈里已经小有名气。  .wav" --output_dir D:\aisound\sound_data\seedvc --diffusion_steps 200 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --f0_condition True --auto_f0_adjust True --semi_tone_shift -2 --character "鸟撩"
+
+
+python .\batch_vc.py --list_file "D:\aisound\sound_data\撩影trans调整\撩影.list" --ref_audio "D:\downloads\0\调查作家玛德琳和她的魔术师朋友乔纳森，联手破获了多起离奇案件，在侦探圈里已经小有名气。  .wav" --output_dir D:\aisound\sound_data\seedvc --diffusion_steps 200 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --f0_condition False --auto_f0_adjust False --character "鸟撩"
+
+
+python .\batch_vc.py --list_file "D:\aisound\sound_data\撩影trans调整\撩影.list" --ref_audio "D:\downloads\0\调查作家玛德琳和她的魔术师朋友乔纳森，联手破获了多起离奇案件，在侦探圈里已经小有名气。  .wav" --output_dir D:\aisound\sound_data\seedvc --diffusion_steps 200 --length_adjust 1.0 --inference_cfg_rate 0.7 --gpu 0 --f0_condition True --auto_f0_adjust False --character "鸟撩"
 
 
 
