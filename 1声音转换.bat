@@ -1,3 +1,2 @@
-call conda activate seedvc
-python app_vc.py
+uv run python app.py --enable-v1 
 pause
