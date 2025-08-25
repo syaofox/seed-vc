@@ -18,3 +18,10 @@ python app_vc_v2.py --cfm-checkpoint-path runs/未鸟/CFM_epoch_00033_step_01000
 
 
 uv run python inference.py --source examples/source/2.wav --target runs/解说/referene.wav --output outputs/ --diffusion-steps 25 --checkpoint "runs/解说/ft_model.pth" --config "runs/解说/config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
+
+
+v2推理
+accelerate launch train_v2.py --dataset-dir "D:\codes\aisounds\.sound_data\京京\京京" --run-name 京京v2 --batch-size 2 --max-steps 1000 --max-epochs 1000 --save-every 500 --num-workers 0 --train-cfm
+
+
+python app_vc_v2.py --ar-checkpoint-path "runs\京京v2\CFM_epoch_00016_step_01000.pth" --cfm-checkpoint-path  "runs\京京v2\vc_wrapper.yaml"
