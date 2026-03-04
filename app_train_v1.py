@@ -1,4 +1,5 @@
 import os
+import signal
 
 os.environ["HF_HUB_CACHE"] = "./checkpoints/hf_cache"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -102,6 +103,9 @@ def load_run_params(run_name):
         return None, None, None, None, None
 
     run_path = os.path.join(RUNS_DIR, run_name)
+    if not os.path.exists(run_path):
+        return None, None, None, None, None
+
     config_files = [
         f
         for f in os.listdir(run_path)
@@ -123,27 +127,6 @@ def load_run_params(run_name):
     except Exception:
         return None, None, None, None, None
 
-    run_path = os.path.join(RUNS_DIR, run_name)
-    config_files = [
-        f
-        for f in os.listdir(run_path)
-        if f.startswith("config_") and f.endswith(".yml")
-    ]
-    if not config_files:
-        return None, None, None, None
-
-    config_path = os.path.join(run_path, config_files[0])
-    try:
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-        batch_size = config.get("batch_size", 2)
-        max_steps = config.get("max_steps", 1000)
-        save_interval = config.get("save_interval", 500)
-        config_file = config_files[0]
-        return config_file, batch_size, max_steps, save_interval
-    except Exception:
-        return None, None, None, None
-
 
 class TrainingProcess:
     def __init__(self):
@@ -164,29 +147,34 @@ class TrainingProcess:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            preexec_fn=os.setsid,
         )
         self.is_running = True
 
         def read_output():
-            for line in self.process.stdout:
-                with self.lock:
-                    self.log_lines.append(line)
-                time.sleep(0.01)
+            try:
+                for line in self.process.stdout:
+                    if not self.is_running:
+                        break
+                    with self.lock:
+                        self.log_lines.append(line)
+                    time.sleep(0.01)
+            except Exception:
+                pass
 
         thread = threading.Thread(target=read_output, daemon=True)
         thread.start()
         return True
 
     def stop(self):
-        if self.process and self.is_running:
-            self.process.terminate()
+        if self.process:
             try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-            self.is_running = False
-            return True
-        return False
+                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+            except Exception:
+                pass
+            self.process = None
+        self.is_running = False
+        return True
 
     def get_logs(self, last_n=100):
         with self.lock:
@@ -332,50 +320,59 @@ def build_ui():
 
         with gr.Row():
             with gr.Column(scale=2):
-                run_name_input = gr.Dropdown(
-                    label="Run 名称",
-                    choices=run_list,
-                    allow_custom_value=True,
-                    value=run_list[0] if run_list else "",
-                    info="选择已有训练继续，或输入新名称全新训练",
-                )
-            with gr.Column(scale=1):
-                refresh_btn = gr.Button("🔄 刷新列表", size="sm")
-
-        with gr.Row():
-            with gr.Column(scale=2):
+                with gr.Row():
+                    with gr.Column(scale=3):
+                        run_name_input = gr.Dropdown(
+                            label="Run 名称",
+                            choices=run_list,
+                            allow_custom_value=True,
+                            value=run_list[0] if run_list else "",
+                            info="选择已有训练继续，或输入新名称全新训练",
+                        )
+                    with gr.Column(scale=1):
+                        refresh_btn = gr.Button("🔄 刷新", size="sm")
                 config_select = gr.Dropdown(
                     label="Config 文件", choices=config_list, value=default_config
                 )
-            with gr.Column(scale=1):
                 dataset_dir = gr.Textbox(
                     label="Dataset 目录",
                     placeholder="/path/to/dataset",
                     info="包含音频文件的文件夹",
                 )
+            with gr.Column(scale=2):
+                with gr.Row():
+                    with gr.Column():
+                        batch_size = gr.Number(label="Batch Size", value=2, precision=0)
+                        max_steps = gr.Number(
+                            label="Max Steps", value=1000, precision=0
+                        )
+                    with gr.Column():
+                        max_epochs = gr.Number(
+                            label="Max Epochs", value=1000, precision=0
+                        )
+                        save_interval = gr.Number(
+                            label="Save Interval", value=500, precision=0
+                        )
+                with gr.Row():
+                    gpu_id = gr.Number(label="GPU ID", value=0, precision=0)
 
         with gr.Row():
-            batch_size = gr.Number(label="Batch Size", value=2, precision=0)
-            max_steps = gr.Number(label="Max Steps", value=1000, precision=0)
-            max_epochs = gr.Number(label="Max Epochs", value=1000, precision=0)
-            save_interval = gr.Number(label="Save Interval", value=500, precision=0)
-            gpu_id = gr.Number(label="GPU ID", value=0, precision=0)
+            start_btn = gr.Button("🚀 开始训练", variant="primary", size="lg")
+            stop_btn = gr.Button("⏹ 停止训练", variant="stop", size="lg")
+
+        run_details = gr.Textbox(label="训练详情", lines=2, interactive=False)
+
+        training_log = gr.Textbox(label="训练日志", lines=20, interactive=False)
 
         with gr.Row():
-            train_btn = gr.Button("🚀 开始训练", variant="primary")
-
-        run_details = gr.Textbox(label="训练详情", lines=3, interactive=False)
-
-        training_log = gr.Textbox(label="训练日志", lines=15, interactive=False)
-
-        with gr.Row():
-            gr.Markdown("### 已保存的训练")
-
-        with gr.Row():
-            delete_run_name = gr.Dropdown(
-                label="选择要删除的训练", choices=run_list, allow_custom_value=True
-            )
-            delete_btn = gr.Button("🗑 删除", variant="stop", size="sm")
+            with gr.Column(scale=3):
+                delete_run_name = gr.Dropdown(
+                    label="已保存的训练",
+                    choices=run_list,
+                    allow_custom_value=True,
+                )
+            with gr.Column(scale=1):
+                delete_btn = gr.Button("🗑 删除", variant="stop", size="sm")
 
         delete_msg = gr.Textbox(label="操作信息", lines=1, interactive=False)
 
@@ -401,7 +398,7 @@ def build_ui():
 
         refresh_btn.click(refresh_run_list, outputs=[run_name_input, delete_run_name])
 
-        def on_train_click(
+        def on_start(
             run_name,
             config_file,
             dataset_dir,
@@ -411,8 +408,6 @@ def build_ui():
             save_interval,
             gpu_id,
         ):
-            if trainer.is_running:
-                return stop_training()
             gen = start_training(
                 run_name,
                 config_file,
@@ -426,8 +421,8 @@ def build_ui():
             for log, btn_update in gen:
                 yield log, btn_update
 
-        train_btn.click(
-            on_train_click,
+        start_btn.click(
+            on_start,
             inputs=[
                 run_name_input,
                 config_select,
@@ -438,8 +433,10 @@ def build_ui():
                 save_interval,
                 gpu_id,
             ],
-            outputs=[training_log, train_btn],
+            outputs=[training_log, stop_btn],
         )
+
+        stop_btn.click(stop_training, outputs=[training_log, start_btn])
 
         delete_btn.click(
             delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name]
