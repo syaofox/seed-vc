@@ -263,7 +263,7 @@ def start_training(
         yield "训练已在运行中", gr.update()
         return
 
-    yield "训练已启动", gr.update(visible=True)
+    yield "训练已启动", gr.update(value="⏹ 停止训练", variant="stop")
 
     last_update = 0
     while trainer.is_running:
@@ -275,12 +275,15 @@ def start_training(
         time.sleep(0.1)
 
     final_logs = trainer.get_logs()
-    yield final_logs + "\n\n训练已结束", gr.update()
+    yield (
+        final_logs + "\n\n训练已结束",
+        gr.update(value="🚀 开始训练", variant="primary"),
+    )
 
 
 def stop_training():
     trainer.stop()
-    return "训练已停止", gr.update()
+    return "训练已停止", gr.update(value="🚀 开始训练", variant="primary")
 
 
 def delete_run(run_name):
@@ -359,8 +362,7 @@ def build_ui():
             gpu_id = gr.Number(label="GPU ID", value=0, precision=0)
 
         with gr.Row():
-            start_btn = gr.Button("🚀 开始训练", variant="primary")
-            stop_btn = gr.Button("⏹ 停止训练", variant="stop")
+            train_btn = gr.Button("🚀 开始训练", variant="primary")
 
         run_details = gr.Textbox(label="训练详情", lines=3, interactive=False)
 
@@ -399,7 +401,7 @@ def build_ui():
 
         refresh_btn.click(refresh_run_list, outputs=[run_name_input, delete_run_name])
 
-        def on_start(
+        def on_train_click(
             run_name,
             config_file,
             dataset_dir,
@@ -409,6 +411,8 @@ def build_ui():
             save_interval,
             gpu_id,
         ):
+            if trainer.is_running:
+                return stop_training()
             gen = start_training(
                 run_name,
                 config_file,
@@ -419,11 +423,11 @@ def build_ui():
                 int(save_interval),
                 int(gpu_id),
             )
-            for log, _ in gen:
-                yield log, gr.update()
+            for log, btn_update in gen:
+                yield log, btn_update
 
-        start_btn.click(
-            on_start,
+        train_btn.click(
+            on_train_click,
             inputs=[
                 run_name_input,
                 config_select,
@@ -434,10 +438,8 @@ def build_ui():
                 save_interval,
                 gpu_id,
             ],
-            outputs=[training_log, stop_btn],
+            outputs=[training_log, train_btn],
         )
-
-        stop_btn.click(stop_training, outputs=[training_log, stop_btn])
 
         delete_btn.click(
             delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name]
