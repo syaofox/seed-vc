@@ -534,7 +534,11 @@ def main(parsed_args):
         "请注意，参考音频若超过 25 秒，则会被自动裁剪至此长度。<br>若源音频和参考音频的总时长超过 30 秒，源音频将被分段处理。"
     )
 
-    with gr.Blocks() as demo:
+    with gr.Blocks(title="Seed Voice Conversion") as demo:
+        gr.Markdown("# Seed Voice Conversion")
+        gr.Markdown(description)
+
+        gr.Markdown("---")
         gr.Markdown("### 模型选择 / Model Selection")
         with gr.Row():
             model_dropdown = gr.Dropdown(
@@ -548,13 +552,8 @@ def main(parsed_args):
 
         gr.Markdown("---")
         gr.Markdown("### 语音转换 / Voice Conversion")
-        with gr.Row():
-            source_audio_input = gr.Audio(
-                type="filepath", label="Source Audio / 源音频"
-            )
-            ref_audio_input = gr.Audio(
-                type="filepath", label="Reference Audio / 参考音频"
-            )
+
+        ref_audio_input = gr.Audio(type="filepath", label="Reference Audio / 参考音频")
 
         reload_btn.click(
             reload_model,
@@ -564,7 +563,7 @@ def main(parsed_args):
         )
 
         inputs = [
-            source_audio_input,
+            gr.Audio(type="filepath", label="Source Audio / 源音频"),
             ref_audio_input,
             gr.Slider(
                 minimum=1,
@@ -626,10 +625,8 @@ def main(parsed_args):
 
         gr.Interface(
             fn=voice_conversion,
-            description=description,
             inputs=inputs,
             outputs=outputs,
-            title="Seed Voice Conversion",
             examples=examples,
             cache_examples=False,
         )
