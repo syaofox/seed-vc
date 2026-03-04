@@ -71,7 +71,7 @@ def get_run_info(run_name):
 
 
 def prepare_config(
-    config_path, run_name, batch_size, max_steps, max_epochs, save_interval
+    config_path, run_name, batch_size, max_steps, max_epochs, save_interval, dataset_dir
 ):
     run_path = os.path.join(RUNS_DIR, run_name)
     existing_config = os.path.join(run_path, os.path.basename(config_path))
@@ -88,6 +88,7 @@ def prepare_config(
     config["max_steps"] = max_steps
     config["max_epochs"] = max_epochs
     config["save_interval"] = save_interval
+    config["dataset_dir"] = dataset_dir
 
     os.makedirs(run_path, exist_ok=True)
 
@@ -100,11 +101,11 @@ def prepare_config(
 
 def load_run_params(run_name):
     if not run_name:
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     run_path = os.path.join(RUNS_DIR, run_name)
     if not os.path.exists(run_path):
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     config_files = [
         f
@@ -112,7 +113,7 @@ def load_run_params(run_name):
         if f.startswith("config_") and f.endswith(".yml")
     ]
     if not config_files:
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     config_path = os.path.join(run_path, config_files[0])
     try:
@@ -122,10 +123,18 @@ def load_run_params(run_name):
         max_steps = config.get("max_steps", 1000)
         max_epochs = config.get("max_epochs", 1000)
         save_interval = config.get("save_interval", 500)
+        dataset_dir = config.get("dataset_dir", "")
         config_file = config_files[0]
-        return config_file, batch_size, max_steps, max_epochs, save_interval
+        return (
+            config_file,
+            batch_size,
+            max_steps,
+            max_epochs,
+            save_interval,
+            dataset_dir,
+        )
     except Exception:
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
 
 class TrainingProcess:
@@ -225,6 +234,7 @@ def start_training(
         max_steps,
         max_epochs,
         save_interval,
+        dataset_dir,
     )
 
     env = os.environ.copy()
@@ -378,10 +388,10 @@ def build_ui():
 
         def on_run_change(run_name):
             details, cfg, has_model = get_run_details(run_name)
-            cfg_file, bs, steps, epochs, save_int = load_run_params(run_name)
+            cfg_file, bs, steps, epochs, save_int, ds_dir = load_run_params(run_name)
             if cfg_file:
-                return details, cfg_file, bs, steps, epochs, save_int
-            return details, cfg, 2, 1000, 1000, 500
+                return details, cfg_file, bs, steps, epochs, save_int, ds_dir
+            return details, cfg, 2, 1000, 1000, 500, ""
 
         run_name_input.change(
             on_run_change,
@@ -393,6 +403,7 @@ def build_ui():
                 max_steps,
                 max_epochs,
                 save_interval,
+                dataset_dir,
             ],
         )
 
