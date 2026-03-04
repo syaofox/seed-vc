@@ -527,9 +527,6 @@ def main(parsed_args):
     ]
 
     description = (
-        "Zero-shot voice conversion with in-context learning. For local deployment please check [GitHub repository](https://github.com/Plachtaa/seed-vc) "
-        "for details and updates.<br>Note that any reference audio will be forcefully clipped to 25s if beyond this length.<br> "
-        "If total duration of source and reference audio exceeds 30s, source audio will be processed in chunks.<br> "
         "无需训练的 zero-shot 语音/歌声转换模型，若需本地部署查看[GitHub页面](https://github.com/Plachtaa/seed-vc)<br>"
         "请注意，参考音频若超过 25 秒，则会被自动裁剪至此长度。<br>若源音频和参考音频的总时长超过 30 秒，源音频将被分段处理。"
     )
