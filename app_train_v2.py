@@ -106,6 +106,7 @@ def prepare_config(
 
     metadata_path = os.path.join(run_path, METADATA_FILE)
     metadata = {
+        "config_file": basename,
         "dataset_dir": dataset_dir,
         "batch_size": batch_size,
         "max_steps": max_steps,
@@ -128,14 +129,6 @@ def load_run_params(run_name):
     if not os.path.exists(run_path):
         return None, None, None, None, None, None, None, None
 
-    config_files = [
-        f
-        for f in os.listdir(run_path)
-        if f.endswith((".yml", ".yaml")) and f != METADATA_FILE
-    ]
-    if not config_files:
-        return None, None, None, None, None, None, None, None
-
     dataset_dir = ""
     batch_size = 2
     max_steps = 1000
@@ -143,12 +136,14 @@ def load_run_params(run_name):
     save_interval = 500
     train_cfm = True
     train_ar = False
+    config_file = ""
 
     metadata_path = os.path.join(run_path, METADATA_FILE)
     if os.path.exists(metadata_path):
         try:
             with open(metadata_path, "r") as f:
                 metadata = yaml.safe_load(f)
+                config_file = metadata.get("config_file", "")
                 dataset_dir = metadata.get("dataset_dir", "")
                 batch_size = metadata.get("batch_size", 2)
                 max_steps = metadata.get("max_steps", 1000)
@@ -159,9 +154,14 @@ def load_run_params(run_name):
         except Exception:
             pass
 
-    config_file = config_files[0]
-    if not config_file.startswith("v2/"):
-        config_file = "v2/" + config_file
+    if not config_file:
+        config_files = [
+            f
+            for f in os.listdir(run_path)
+            if f.endswith((".yml", ".yaml")) and f != METADATA_FILE
+        ]
+        if config_files:
+            config_file = config_files[0]
 
     return (
         config_file,
@@ -272,10 +272,16 @@ def start_training(
     ar_ckpt = pretrained_ar_ckpt if pretrained_ar_ckpt else ""
 
     if run_info:
-        if run_info["has_cfm"] and not cfm_ckpt:
-            cfm_ckpt = os.path.join(run_path, run_info["cfm_ckpt"])
-        if run_info["has_ar"] and not ar_ckpt:
-            ar_ckpt = os.path.join(run_path, run_info["ar_ckpt"])
+        if run_info["has_cfm"]:
+            if cfm_ckpt and not os.path.isabs(cfm_ckpt):
+                cfm_ckpt = os.path.join(run_path, cfm_ckpt)
+            elif not cfm_ckpt:
+                cfm_ckpt = os.path.join(run_path, run_info["cfm_ckpt"])
+        if run_info["has_ar"]:
+            if ar_ckpt and not os.path.isabs(ar_ckpt):
+                ar_ckpt = os.path.join(run_path, ar_ckpt)
+            elif not ar_ckpt:
+                ar_ckpt = os.path.join(run_path, run_info["ar_ckpt"])
         if run_info["config"]:
             config_file = run_info["config"]
         print(f"Continuing training - CFM: {cfm_ckpt}, AR: {ar_ckpt}")
@@ -368,7 +374,8 @@ def delete_run(run_name):
 def refresh_run_list():
     runs = get_run_list()
     choices = [r["name"] for r in runs]
-    return gr.update(choices=choices), gr.update(choices=choices)
+    first = choices[0] if choices else ""
+    return gr.update(choices=choices, value=first), gr.update(choices=choices)
 
 
 def get_run_details(run_name):
