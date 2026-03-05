@@ -36,7 +36,7 @@ from pathlib import Path
 os.environ.setdefault("HF_HUB_CACHE", "./checkpoints/hf_cache")
 HF_CACHE = Path(os.environ.get("HF_HUB_CACHE", "./checkpoints/hf_cache"))
 os.environ.pop("HF_HUB_OFFLINE", None)
-os.environ.pop("HF_ENDPOINT", None)
+# os.environ.pop("HF_ENDPOINT", None)
 HF_CACHE.mkdir(parents=True, exist_ok=True)
 
 MODELS = {
@@ -109,6 +109,36 @@ MODELS = {
     ],
     "V2 推理/训练模型": [
         {
+            "repo_id": "Plachta/ASTRAL-quantization",
+            "filename": "bsq32/bsq32_light.pth",
+            "description": "ASTRAL 窄带内容提取器",
+        },
+        {
+            "repo_id": "Plachta/ASTRAL-quantization",
+            "filename": "bsq32/config.yml",
+            "description": "ASTRAL 窄带配置",
+        },
+        {
+            "repo_id": "Plachta/ASTRAL-quantization",
+            "filename": "bsq2048/bsq2048_light.pth",
+            "description": "ASTRAL 宽带内容提取器",
+        },
+        {
+            "repo_id": "Plachta/ASTRAL-quantization",
+            "filename": "bsq2048/config.yml",
+            "description": "ASTRAL 宽带配置",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
+            "filename": "v2/cfm_small.pth",
+            "description": "V2 CFM 主模型",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
+            "filename": "v2/ar_base.pth",
+            "description": "V2 AR 主模型",
+        },
+        {
             "repo_id": "openai/whisper-small",
             "filename": "config.json",
             "description": "Whisper-small (V2 content tokenizer)",
@@ -143,17 +173,57 @@ MODELS = {
             "filename": "preprocessor_config.json",
             "description": "HuBERT-large 预处理器配置",
         },
+        {
+            "repo_id": "nvidia/bigvgan_v2_22khz_80band_256x",
+            "filename": "config.json",
+            "description": "BigVGAN 22kHz 配置文件",
+        },
+        {
+            "repo_id": "nvidia/bigvgan_v2_22khz_80band_256x",
+            "filename": "bigvgan_generator.pt",
+            "description": "BigVGAN 22kHz 生成器权重",
+        },
+        {
+            "repo_id": "funasr/campplus",
+            "filename": "campplus_cn_common.bin",
+            "description": "CAMPPlus 说话人编码器",
+        },
     ],
     "V1 其他可选模型": [
         {
             "repo_id": "Plachta/Seed-VC",
+            "filename": "DiT_uvit_tat_xlsr_ema.pth",
+            "description": "V1 实时 VC 模型 (xlsr-tiny)(可选)",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
+            "filename": "config_dit_mel_seed_uvit_xlsr_tiny.yml",
+            "description": "V1 实时 VC 配置文件(可选)",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
+            "filename": "DiT_seed_v2_uvit_whisper_base_f0_44k_bigvgan_pruned_ema.pth",
+            "description": "V1 44kHz SVC 模型 ema(可选)",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
             "filename": "DiT_seed_v2_uvit_whisper_base_f0_44k_bigvgan_pruned_ft_ema.pth",
-            "description": "V1 44kHz SVC 模型(可选)",
+            "description": "V1 44kHz SVC 模型 ft_ema(可选)",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
+            "filename": "DiT_seed_v2_uvit_whisper_base_f0_44k_bigvgan_pruned_ft_ema_v2.pth",
+            "description": "V1 44kHz SVC 模型 ft_ema_v2(可选)",
         },
         {
             "repo_id": "Plachta/Seed-VC",
             "filename": "config_dit_mel_seed_uvit_whisper_base_f0_44k.yml",
             "description": "V1 44kHz 配置文件(可选)",
+        },
+        {
+            "repo_id": "Plachta/Seed-VC",
+            "filename": "hifigan.yml",
+            "description": "HiFi-GAN/HiFT 配置文件(可选)",
         },
         {
             "repo_id": "nvidia/bigvgan_v2_44khz_128band_512x",
