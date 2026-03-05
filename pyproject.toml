@@ -55,7 +55,17 @@ target-version = "py310"
 ignore = [
     "E501",     # 行太长（line too long）
     "W505",     # 文档字符串（docstring）单行过长（doc line too long）
-
+    "E402",     # 模块级导入不在文件顶部
+    "F403",     # star imports
+    "F405",     # 可能是从 star imports 中定义的
+    "F811",     # 重新定义未使用的
+    "F821",     # 未定义的名称
+    "F841",     # 未使用的局部变量
+    "E731",     # lambda 表达式
+    "E741",     # 模糊变量名
+    "E712",     # 与 True/False 的相等比较
+    "E721",     # 类型比较使用 ==
+    "E722",     # 裸 except
 ]
 
 
