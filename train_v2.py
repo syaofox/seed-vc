@@ -1,6 +1,7 @@
 import os
 import sys
-os.environ['HF_HUB_CACHE'] = './checkpoints/hf_cache'
+
+os.environ["HF_HUB_CACHE"] = "./checkpoints/hf_cache"
 import torch
 import torch.multiprocessing as mp
 import random
@@ -23,23 +24,25 @@ from accelerate import Accelerator
 from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
 
+
 class Trainer:
     def __init__(
-            self,
-            config_path,
-            pretrained_cfm_ckpt_path,
-            pretrained_ar_ckpt_path,
-            data_dir,
-            run_name,
-            batch_size=0,
-            num_workers=0,
-            steps=1000,
-            save_interval=500,
-            max_epochs=1000,
-            train_cfm=True,
-            train_ar=False,
-            mixed_precision=None,
-        ):
+        self,
+        config_path,
+        pretrained_cfm_ckpt_path,
+        pretrained_ar_ckpt_path,
+        data_dir,
+        run_name,
+        batch_size=0,
+        num_workers=0,
+        steps=1000,
+        save_interval=500,
+        max_epochs=1000,
+        train_cfm=True,
+        train_ar=False,
+        mixed_precision=None,
+        log_dir=None,
+    ):
         self.config_path = config_path
         self.mixed_precision = mixed_precision
 
@@ -47,18 +50,22 @@ class Trainer:
         self.config = yaml.safe_load(open(config_path))
 
         # Setup logging directory
-        self.log_dir = os.path.join("runs", run_name)
+        self.log_dir = log_dir if log_dir else os.path.join("runs", run_name)
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir, exist_ok=True)
-        shutil.copy(config_path, os.path.join(self.log_dir, os.path.basename(config_path)))
+        dst_path = os.path.join(self.log_dir, os.path.basename(config_path))
+        if os.path.abspath(config_path) != os.path.abspath(dst_path):
+            shutil.copy(config_path, dst_path)
 
         # Setup accelerator
-        ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)
+        ddp_kwargs = DistributedDataParallelKwargs(
+            find_unused_parameters=True, broadcast_buffers=False
+        )
         self.accelerator = Accelerator(
             project_dir=self.log_dir,
             split_batches=True,
             kwargs_handlers=[ddp_kwargs],
-            mixed_precision=mixed_precision
+            mixed_precision=mixed_precision,
         )
         self.device = self.accelerator.device
 
@@ -67,8 +74,8 @@ class Trainer:
             data_dir=data_dir,
             batch_size=batch_size,
             num_workers=num_workers,
-            spect_params=self.config['mel_fn'],
-            sr=self.config['sr'],
+            spect_params=self.config["mel_fn"],
+            sr=self.config["sr"],
         )
 
         # Initialize models and optimizers
@@ -108,7 +115,6 @@ class Trainer:
         # Initialize optimizers
         self._init_optimizers()
 
-
     def _init_main_model(self, train_cfm=True, train_ar=False):
         """Initialize the main model"""
         with self.accelerator.main_process_first():
@@ -127,10 +133,10 @@ class Trainer:
                 for p in self.model.ar_length_regulator.parameters():
                     p.requires_grad = True
 
-
     def _init_optimizers(self):
         """Initialize optimizers and schedulers"""
         from optimizers import build_single_optimizer
+
         self.optimizer, self.scheduler = build_single_optimizer(
             self.model,
             lr=2e-5,
@@ -151,9 +157,9 @@ class Trainer:
             )
             # delete the earliest checkpoint
             if (
-                    earliest_checkpoint != latest_checkpoint
-                    and self.accelerator.is_main_process
-                    and len(available_checkpoints) > max_keep
+                earliest_checkpoint != latest_checkpoint
+                and self.accelerator.is_main_process
+                and len(available_checkpoints) > max_keep
             ):
                 os.remove(earliest_checkpoint)
                 print(f"Removed {earliest_checkpoint}")
@@ -163,15 +169,22 @@ class Trainer:
 
     def _load_checkpoint(self, pretrained_cfm_ckpt_path, pretrained_ar_ckpt_path):
         """Load checkpoint if available"""
-        cfm_checkpoint_path = pretrained_cfm_ckpt_path or self._find_checkpoint("CFM_epoch_*_step_*.pth", max_keep=1)
-        ar_checkpoint_path = pretrained_ar_ckpt_path or self._find_checkpoint("AR_epoch_*_step_*.pth", max_keep=1)
+        cfm_checkpoint_path = pretrained_cfm_ckpt_path or self._find_checkpoint(
+            "CFM_epoch_*_step_*.pth", max_keep=1
+        )
+        ar_checkpoint_path = pretrained_ar_ckpt_path or self._find_checkpoint(
+            "AR_epoch_*_step_*.pth", max_keep=1
+        )
 
         with self.accelerator.main_process_first():
             if cfm_checkpoint_path:
                 print(f"Loading CFM checkpoint from {cfm_checkpoint_path}")
             if ar_checkpoint_path:
                 print(f"Loading AR checkpoint from {ar_checkpoint_path}")
-            self.model.load_checkpoints(cfm_checkpoint_path=cfm_checkpoint_path, ar_checkpoint_path=ar_checkpoint_path)
+            self.model.load_checkpoints(
+                cfm_checkpoint_path=cfm_checkpoint_path,
+                ar_checkpoint_path=ar_checkpoint_path,
+            )
         self.model = self.accelerator.prepare(self.model)
 
     def filter_state_dict_shapes(self, params, model):
@@ -210,7 +223,9 @@ class Trainer:
 
             # Log epoch completion
             if self.accelerator.is_main_process:
-                print(f"Epoch {epoch} completed in {time.time() - epoch_start_time:.2f} seconds")
+                print(
+                    f"Epoch {epoch} completed in {time.time() - epoch_start_time:.2f} seconds"
+                )
 
             if epoch + 1 >= self.max_epochs and self.accelerator.is_main_process:
                 print("Reached max epochs, stopping training")
@@ -251,7 +266,11 @@ class Trainer:
         self._log_training_progress(epoch, i, loss, loss_ar, loss_cfm, grad_norm_g)
 
         # Save checkpoint
-        if self.iters != 0 and self.iters % self.save_interval == 0 and self.accelerator.is_main_process:
+        if (
+            self.iters != 0
+            and self.iters % self.save_interval == 0
+            and self.accelerator.is_main_process
+        ):
             self._save_checkpoint(epoch)
 
         # Increment iteration counter
@@ -264,22 +283,36 @@ class Trainer:
                 cur_lr = self.scheduler.get_last_lr()[0] if i != 0 else 0
 
                 # Log to console
-                print("Epoch %d, Iteration %d, Loss: %.4f, Loss AR: %.4f, Loss CFM: %.4f, Grad Norm: %.4f, LR: %.6f"
-                      % (epoch, i, loss.item(), loss_ar.item(), loss_cfm.item(), grad_norm_g, cur_lr))
+                print(
+                    "Epoch %d, Iteration %d, Loss: %.4f, Loss AR: %.4f, Loss CFM: %.4f, Grad Norm: %.4f, LR: %.6f"
+                    % (
+                        epoch,
+                        i,
+                        loss.item(),
+                        loss_ar.item(),
+                        loss_cfm.item(),
+                        grad_norm_g,
+                        cur_lr,
+                    )
+                )
 
     def _save_checkpoint(self, epoch):
         """Save model checkpoint"""
-        print('Saving checkpoint...')
+        print("Saving checkpoint...")
         if self.train_ar:
             state = {
-                'net': {
-                    'ar': self.accelerator.unwrap_model(self.model).ar.state_dict(),
-                    'length_regulator': self.accelerator.unwrap_model(self.model).ar_length_regulator.state_dict(),
+                "net": {
+                    "ar": self.accelerator.unwrap_model(self.model).ar.state_dict(),
+                    "length_regulator": self.accelerator.unwrap_model(
+                        self.model
+                    ).ar_length_regulator.state_dict(),
                 },
-                'iters': self.iters,
-                'epoch': epoch,
+                "iters": self.iters,
+                "epoch": epoch,
             }
-            save_path = os.path.join(self.log_dir, 'AR_epoch_%05d_step_%05d.pth' % (epoch, self.iters))
+            save_path = os.path.join(
+                self.log_dir, "AR_epoch_%05d_step_%05d.pth" % (epoch, self.iters)
+            )
             torch.save(state, save_path)
             print(f"Saved AR checkpoint to {save_path}")
 
@@ -287,28 +320,34 @@ class Trainer:
             self._remove_old_checkpoints("AR_epoch_*_step_*.pth", max_keep=1)
         if self.train_cfm:
             state = {
-                'net': {
-                    'cfm': self.accelerator.unwrap_model(self.model).cfm.state_dict(),
-                    'length_regulator': self.accelerator.unwrap_model(self.model).cfm_length_regulator.state_dict(),
+                "net": {
+                    "cfm": self.accelerator.unwrap_model(self.model).cfm.state_dict(),
+                    "length_regulator": self.accelerator.unwrap_model(
+                        self.model
+                    ).cfm_length_regulator.state_dict(),
                 },
-                'iters': self.iters,
-                'epoch': epoch,
+                "iters": self.iters,
+                "epoch": epoch,
             }
-            save_path = os.path.join(self.log_dir, 'CFM_epoch_%05d_step_%05d.pth' % (epoch, self.iters))
+            save_path = os.path.join(
+                self.log_dir, "CFM_epoch_%05d_step_%05d.pth" % (epoch, self.iters)
+            )
             torch.save(state, save_path)
             print(f"Saved CFM checkpoint to {save_path}")
 
             # Find all checkpoints and remove old ones
             self._remove_old_checkpoints("CFM_epoch_*_step_*.pth", max_keep=1)
+
     def _remove_old_checkpoints(self, name_pattern, max_keep=1):
         """Remove old checkpoints"""
         checkpoints = glob.glob(os.path.join(self.log_dir, name_pattern))
         if len(checkpoints) > max_keep:
             # Sort by step
-            checkpoints.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
+            checkpoints.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
             # Remove all except last 1
             for cp in checkpoints[:-max_keep]:
                 os.remove(cp)
+
 
 def main(args):
     trainer = Trainer(
@@ -324,22 +363,30 @@ def main(args):
         num_workers=args.num_workers,
         train_cfm=args.train_cfm,
         train_ar=args.train_ar,
+        log_dir=args.log_dir,
     )
     trainer.train()
-    
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='configs/v2/vc_wrapper.yaml')
-    parser.add_argument('--pretrained-cfm-ckpt', type=str, default=None)
-    parser.add_argument('--pretrained-ar-ckpt', type=str, default=None)
-    parser.add_argument('--dataset-dir', type=str, default='/path/to/dataset')
-    parser.add_argument('--run-name', type=str, default='my_run')
-    parser.add_argument('--batch-size', type=int, default=2)
-    parser.add_argument('--max-steps', type=int, default=1000)
-    parser.add_argument('--max-epochs', type=int, default=1000)
-    parser.add_argument('--save-every', type=int, default=500)
-    parser.add_argument('--num-workers', type=int, default=0)
-    parser.add_argument('--train-cfm', action='store_true', help='Train CFM model')
-    parser.add_argument('--train-ar', action='store_true', help='Train AR model')
+    parser.add_argument("--config", type=str, default="configs/v2/vc_wrapper.yaml")
+    parser.add_argument("--pretrained-cfm-ckpt", type=str, default=None)
+    parser.add_argument("--pretrained-ar-ckpt", type=str, default=None)
+    parser.add_argument("--dataset-dir", type=str, default="/path/to/dataset")
+    parser.add_argument("--run-name", type=str, default="my_run")
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        default=None,
+        help="Log directory (default: runs/<run_name>)",
+    )
+    parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument("--max-steps", type=int, default=1000)
+    parser.add_argument("--max-epochs", type=int, default=1000)
+    parser.add_argument("--save-every", type=int, default=500)
+    parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--train-cfm", action="store_true", help="Train CFM model")
+    parser.add_argument("--train-ar", action="store_true", help="Train AR model")
     args = parser.parse_args()
     main(args)
