@@ -371,11 +371,15 @@ def delete_run(run_name):
     return f"训练不存在: {run_name}", gr.update(visible=True)
 
 
-def refresh_run_list():
+def refresh_run_list(current_run_name=""):
     runs = get_run_list()
     choices = [r["name"] for r in runs]
-    first = choices[0] if choices else ""
-    return gr.update(choices=choices, value=first), gr.update(choices=choices)
+    selected = (
+        current_run_name
+        if current_run_name and current_run_name in choices
+        else (choices[0] if choices else "")
+    )
+    return gr.update(choices=choices, value=selected), gr.update(choices=choices)
 
 
 def get_run_details(run_name):
@@ -536,7 +540,27 @@ def build_ui():
             ],
         )
 
-        refresh_btn.click(refresh_run_list, outputs=[run_name_input, delete_run_name])
+        refresh_btn.click(
+            refresh_run_list,
+            inputs=[run_name_input],
+            outputs=[run_name_input, delete_run_name],
+        ).then(
+            on_run_change,
+            inputs=[run_name_input],
+            outputs=[
+                run_details,
+                config_select,
+                batch_size,
+                max_steps,
+                max_epochs,
+                save_interval,
+                train_cfm,
+                train_ar,
+                pretrained_cfm_ckpt,
+                pretrained_ar_ckpt,
+                dataset_dir,
+            ],
+        )
 
         def on_start(
             run_name,
@@ -597,7 +621,23 @@ def build_ui():
             delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name]
         )
 
-        demo.load(refresh_run_list, outputs=[run_name_input, delete_run_name])
+        demo.load(refresh_run_list, outputs=[run_name_input, delete_run_name]).then(
+            on_run_change,
+            inputs=[run_name_input],
+            outputs=[
+                run_details,
+                config_select,
+                batch_size,
+                max_steps,
+                max_epochs,
+                save_interval,
+                train_cfm,
+                train_ar,
+                pretrained_cfm_ckpt,
+                pretrained_ar_ckpt,
+                dataset_dir,
+            ],
+        )
 
     return demo
 
