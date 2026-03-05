@@ -254,8 +254,8 @@ def main(args):
                 label="Repetition Penalty",
                 info="Penalizes repetition in generated audio / 惩罚生成音频中的重复",
             ),
-            gr.Checkbox(label="convert style", value=False),
-            gr.Checkbox(label="anonymization only", value=False),
+            gr.Checkbox(label="转换风格 (convert style)", value=False, info="增强风格迁移效果"),
+            gr.Checkbox(label="仅匿名化 (anonymization only)", value=False, info="生成随机匿名声音，忽略目标音色"),
         ]
 
         outputs = [

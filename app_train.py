@@ -157,6 +157,8 @@ class TrainingProcess:
                     time.sleep(0.01)
             except Exception:
                 pass
+            finally:
+                self.is_running = False
 
         thread = threading.Thread(target=read_output, daemon=True)
         thread.start()

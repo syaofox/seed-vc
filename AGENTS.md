@@ -137,6 +137,7 @@ from modules.commons import str2bool
 
 ## 注意事项
 
+- 所有回复一律用中文
 - HuggingFace 访问：如遇网络问题，使用镜像 `HF_ENDPOINT=https://hf-mirror.com`
 - 模型下载：首次运行自动下载，默认缓存 `./checkpoints/hf_cache`
 - 实时转换延迟 ≈ Block Time × 2 + Extra context (right) + 设备延迟(~100ms)

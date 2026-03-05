@@ -201,6 +201,8 @@ class TrainingProcess:
                     time.sleep(0.01)
             except Exception:
                 pass
+            finally:
+                self.is_running = False
 
         thread = threading.Thread(target=read_output, daemon=True)
         thread.start()
@@ -433,7 +435,7 @@ def build_ui():
                 with gr.Row():
                     with gr.Column():
                         train_cfm = gr.Checkbox(label="训练 CFM 模型", value=True)
-                        train_ar = gr.Checkbox(label="训练 AR 模型", value=False)
+                        train_ar = gr.Checkbox(label="训练 AR 模型", value=True)
                     with gr.Column():
                         num_workers = gr.Number(label="Num Workers", value=0, precision=0)
                         gpu_id = gr.Number(label="GPU ID", value=0, precision=0)
