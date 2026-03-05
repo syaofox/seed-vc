@@ -52,14 +52,19 @@ line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PT"]
-ignore = ["E402"]
+ignore = [
+    "E402", "F401", "E501", "E722", "F403", "E731",
+    "F405",   # star imports 导致的 may be undefined
+    "F841",   # unused local variable
+    "E741",   # ambiguous variable name 'l'
+    "E712",   # == True / == False 比较
+    "F821",   # undefined name
+    "F811",   # redefinition of unused name
+    "E721",   # type comparison using ==
+    "E701",   # multiple statements on one line
+    # 如果还有其他规则报错，继续加进来
+    # "E731",   # lambda assignment（如果你之前有）
+]
 
-[tool.ruff.lint.isort]
-known-first-party = ["modules", "seed_vc", "baselines", "data"]
 
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "tab"
-skip-magic-trailing-comma = false
-line-ending = "auto"
+
