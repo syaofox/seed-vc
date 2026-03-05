@@ -626,6 +626,7 @@ def main(parsed_args):
             outputs=outputs,
             examples=examples,
             cache_examples=False,
+            allow_flagging="never",  
         )
 
     demo.launch(share=args.share)
