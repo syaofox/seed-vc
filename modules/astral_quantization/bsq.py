@@ -24,15 +24,17 @@ from einops import rearrange, reduce, pack, unpack
 
 # constants
 
-Return = namedtuple('Return', ['quantized', 'indices', 'entropy_aux_loss'])
+Return = namedtuple("Return", ["quantized", "indices", "entropy_aux_loss"])
 
-LossBreakdown = namedtuple('LossBreakdown', ['per_sample_entropy', 'batch_entropy', 'commitment'])
+LossBreakdown = namedtuple("LossBreakdown", ["per_sample_entropy", "batch_entropy", "commitment"])
 
 # distributed helpers
+
 
 @cache
 def is_distributed():
     return dist.is_initialized() and dist.get_world_size() > 1
+
 
 def maybe_distributed_mean(t):
     if not is_distributed():
@@ -42,13 +44,17 @@ def maybe_distributed_mean(t):
     t = t / dist.get_world_size()
     return t
 
+
 # helper functions
+
 
 def exists(v):
     return v is not None
 
+
 def identity(t):
     return t
+
 
 def default(*args):
     for arg in args:
@@ -56,40 +62,44 @@ def default(*args):
             return arg() if callable(arg) else arg
     return None
 
+
 def pack_one(t, pattern):
     return pack([t], pattern)
+
 
 def unpack_one(t, ps, pattern):
     return unpack(t, ps, pattern)[0]
 
+
 def l2norm(t):
-    return F.normalize(t, dim = -1)
+    return F.normalize(t, dim=-1)
+
 
 # entropy
 
-def log(t, eps = 1e-5):
-    return t.clamp(min = eps).log()
+
+def log(t, eps=1e-5):
+    return t.clamp(min=eps).log()
+
 
 def entropy(prob):
     return (-prob * log(prob)).sum(dim=-1)
 
+
 # cosine sim linear
 
+
 class CosineSimLinear(Module):
-    def __init__(
-        self,
-        dim_in,
-        dim_out,
-        scale = 1.
-    ):
+    def __init__(self, dim_in, dim_out, scale=1.0):
         super().__init__()
         self.scale = scale
         self.weight = nn.Parameter(torch.randn(dim_in, dim_out))
 
     def forward(self, x):
-        x = F.normalize(x, dim = -1)
-        w = F.normalize(self.weight, dim = 0)
+        x = F.normalize(x, dim=-1)
+        w = F.normalize(self.weight, dim=0)
         return (x @ w) * self.scale
+
 
 def soft_entropy_loss(u, tau=1.0, gamma=1.0):
     """
@@ -123,43 +133,47 @@ def soft_entropy_loss(u, tau=1.0, gamma=1.0):
     loss = entropy_term1 - gamma * entropy_term2
     return loss
 
+
 # class
+
 
 class BinarySphericalQuantize(Module):
     def __init__(
         self,
         *,
-        dim = None,
-        codebook_size = None,
-        entropy_loss_weight = 0.1,
-        commitment_loss_weight = 0.,
-        diversity_gamma = 1.,
-        straight_through_activation = nn.Identity(),
-        num_codebooks = 1,
-        keep_num_codebooks_dim = None,
-        codebook_scale = 1.,                        # for residual LFQ, codebook scaled down by 2x at each layer
-        frac_per_sample_entropy = 0.25,               # make less than 1. to only use a random fraction of the probs for per sample entropy
-        has_projections = None,
-        projection_has_bias = True,
-        soft_clamp_input_value = None,
-        cosine_sim_project_in = False,
-        cosine_sim_project_in_scale = None,
-        channel_first = None,
-        experimental_softplus_entropy_loss = False,
-        entropy_loss_offset = 5.,                   # how much to shift the loss before softplus
-        spherical = True,                          # from https://arxiv.org/abs/2406.07548
-        force_quantization_f32 = True,               # will force the quantization step to be full precision
-        enable_entropy_loss = True,
-        soft_entropy_loss = True,
+        dim=None,
+        codebook_size=None,
+        entropy_loss_weight=0.1,
+        commitment_loss_weight=0.0,
+        diversity_gamma=1.0,
+        straight_through_activation=nn.Identity(),
+        num_codebooks=1,
+        keep_num_codebooks_dim=None,
+        codebook_scale=1.0,  # for residual LFQ, codebook scaled down by 2x at each layer
+        frac_per_sample_entropy=0.25,  # make less than 1. to only use a random fraction of the probs for per sample entropy
+        has_projections=None,
+        projection_has_bias=True,
+        soft_clamp_input_value=None,
+        cosine_sim_project_in=False,
+        cosine_sim_project_in_scale=None,
+        channel_first=None,
+        experimental_softplus_entropy_loss=False,
+        entropy_loss_offset=5.0,  # how much to shift the loss before softplus
+        spherical=True,  # from https://arxiv.org/abs/2406.07548
+        force_quantization_f32=True,  # will force the quantization step to be full precision
+        enable_entropy_loss=True,
+        soft_entropy_loss=True,
     ):
         super().__init__()
 
         # some assert validations
 
-        assert exists(dim) or exists(codebook_size), 'either dim or codebook_size must be specified for LFQ'
-        assert not exists(codebook_size) or log2(codebook_size).is_integer(), f'your codebook size must be a power of 2 for lookup free quantization (suggested {2 ** ceil(log2(codebook_size))})'
+        assert exists(dim) or exists(codebook_size), "either dim or codebook_size must be specified for LFQ"
+        assert not exists(codebook_size) or log2(codebook_size).is_integer(), (
+            f"your codebook size must be a power of 2 for lookup free quantization (suggested {2 ** ceil(log2(codebook_size))})"
+        )
 
-        codebook_size = default(codebook_size, lambda: 2 ** dim)
+        codebook_size = default(codebook_size, lambda: 2**dim)
         self.codebook_size = codebook_size
 
         codebook_dim = int(log2(codebook_size))
@@ -170,12 +184,12 @@ class BinarySphericalQuantize(Module):
 
         if cosine_sim_project_in:
             cosine_sim_project_in = default(cosine_sim_project_in_scale, codebook_scale)
-            project_in_klass = partial(CosineSimLinear, scale = cosine_sim_project_in)
+            project_in_klass = partial(CosineSimLinear, scale=cosine_sim_project_in)
         else:
-            project_in_klass = partial(nn.Linear, bias = projection_has_bias)
+            project_in_klass = partial(nn.Linear, bias=projection_has_bias)
 
         self.project_in = project_in_klass(dim, codebook_dims) if has_projections else nn.Identity()
-        self.project_out = nn.Linear(codebook_dims, dim, bias = projection_has_bias) if has_projections else nn.Identity()
+        self.project_out = nn.Linear(codebook_dims, dim, bias=projection_has_bias) if has_projections else nn.Identity()
         self.has_projections = has_projections
 
         self.dim = dim
@@ -201,7 +215,7 @@ class BinarySphericalQuantize(Module):
 
         # entropy aux loss related weights
 
-        assert 0 < frac_per_sample_entropy <= 1.
+        assert 0 < frac_per_sample_entropy <= 1.0
         self.frac_per_sample_entropy = frac_per_sample_entropy
 
         self.diversity_gamma = diversity_gamma
@@ -227,8 +241,8 @@ class BinarySphericalQuantize(Module):
 
         # for no auxiliary loss, during inference
 
-        self.register_buffer('mask', 2 ** torch.arange(codebook_dim - 1, -1, -1))
-        self.register_buffer('zero', torch.tensor(0.), persistent = False)
+        self.register_buffer("mask", 2 ** torch.arange(codebook_dim - 1, -1, -1))
+        self.register_buffer("zero", torch.tensor(0.0), persistent=False)
 
         # whether to force quantization step to be f32
 
@@ -242,14 +256,14 @@ class BinarySphericalQuantize(Module):
             bits = ((all_codes[..., None].int() & self.mask) != 0).float()
             codebook = self.bits_to_codes(bits)
 
-            self.register_buffer('codebook', codebook.float(), persistent = False)
+            self.register_buffer("codebook", codebook.float(), persistent=False)
         else:
             all_codes = torch.arange(pow(2, 16))
             mask = 2 ** torch.arange(16 - 1, -1, -1)
             bits = ((all_codes[..., None].int() & mask) != 0).float()
             codebook = self.bits_to_codes(bits)
 
-            self.register_buffer('codebook', codebook.float(), persistent = False)
+            self.register_buffer("codebook", codebook.float(), persistent=False)
 
     def bits_to_codes(self, bits):
         return bits * self.codebook_scale * 2 - self.codebook_scale
@@ -258,16 +272,12 @@ class BinarySphericalQuantize(Module):
     def dtype(self):
         return self.codebook.dtype
 
-    def indices_to_codes(
-        self,
-        indices,
-        project_out = True
-    ):
+    def indices_to_codes(self, indices, project_out=True):
         is_img_or_video = indices.ndim >= (3 + int(self.keep_num_codebooks_dim))
         should_transpose = default(self.channel_first, is_img_or_video)
 
         if not self.keep_num_codebooks_dim:
-            indices = rearrange(indices, '... -> ... 1')
+            indices = rearrange(indices, "... -> ... 1")
 
         # indices to codes, which are bits of either -1 or 1
 
@@ -277,7 +287,7 @@ class BinarySphericalQuantize(Module):
 
         codes = self.maybe_l2norm(codes)
 
-        codes = rearrange(codes, '... c d -> ... (c d)')
+        codes = rearrange(codes, "... c d -> ... (c d)")
 
         # whether to project codes out to original dimensions
         # if the input feature dimensions were not log2(codebook size)
@@ -288,7 +298,7 @@ class BinarySphericalQuantize(Module):
         # rearrange codes back to original shape
 
         if should_transpose:
-            codes = rearrange(codes, 'b ... d -> b d ...')
+            codes = rearrange(codes, "b ... d -> b d ...")
 
         return codes
 
@@ -300,14 +310,7 @@ class BinarySphericalQuantize(Module):
         z = self.project_out(quantized)
         return z
 
-    def forward(
-        self,
-        x,
-        inv_temperature = 100.,
-        return_loss_breakdown = False,
-        mask = None,
-        return_bits = False
-    ):
+    def forward(self, x, inv_temperature=100.0, return_loss_breakdown=False, mask=None, return_bits=False):
         """
         einstein notation
         b - batch
@@ -322,10 +325,10 @@ class BinarySphericalQuantize(Module):
         # standardize image or video into (batch, seq, dimension)
 
         if should_transpose:
-            x = rearrange(x, 'b d ... -> b ... d')
-            x, ps = pack_one(x, 'b * d')
+            x = rearrange(x, "b d ... -> b ... d")
+            x, ps = pack_one(x, "b * d")
 
-        assert x.shape[-1] == self.dim, f'expected dimension of {self.dim} but received {x.shape[-1]}'
+        assert x.shape[-1] == self.dim, f"expected dimension of {self.dim} but received {x.shape[-1]}"
 
         x = self.project_in(x)
 
@@ -337,7 +340,7 @@ class BinarySphericalQuantize(Module):
 
         # split out number of codebooks
 
-        x = rearrange(x, 'b n (c d) -> b n c d', c = self.num_codebooks)
+        x = rearrange(x, "b n (c d) -> b n c d", c=self.num_codebooks)
 
         # maybe l2norm
 
@@ -347,10 +350,9 @@ class BinarySphericalQuantize(Module):
 
         force_f32 = self.force_quantization_f32
 
-        quantization_context = partial(autocast, 'cuda', enabled = False) if force_f32 else nullcontext
+        quantization_context = partial(autocast, "cuda", enabled=False) if force_f32 else nullcontext
 
         with quantization_context():
-
             if force_f32:
                 orig_dtype = x.dtype
                 x = x.float()
@@ -366,7 +368,7 @@ class BinarySphericalQuantize(Module):
 
             # calculate indices
 
-            indices = reduce((quantized > 0).int() * self.mask.int(), 'b n c d -> b n c', 'sum')
+            indices = reduce((quantized > 0).int() * self.mask.int(), "b n c d -> b n c", "sum")
 
             # maybe l2norm
 
@@ -384,7 +386,6 @@ class BinarySphericalQuantize(Module):
             if self.soft_entropy_loss:
                 entropy_aux_loss = soft_entropy_loss(x, tau=1.0, gamma=1.0)
             elif self.training and self.enable_entropy_loss:
-
                 if force_f32:
                     codebook = self.codebook.float()
 
@@ -392,29 +393,29 @@ class BinarySphericalQuantize(Module):
 
                 # whether to only use a fraction of probs, for reducing memory
 
-                if self.frac_per_sample_entropy < 1.:
+                if self.frac_per_sample_entropy < 1.0:
                     # account for mask
                     if exists(mask):
                         original_input = original_input[mask]
-                    original_input = rearrange(original_input, 'b n ... -> (b n) ...')
+                    original_input = rearrange(original_input, "b n ... -> (b n) ...")
 
-                    rand_mask = torch.randn(self.codebook_dim).argsort(dim = -1) < 16
+                    rand_mask = torch.randn(self.codebook_dim).argsort(dim=-1) < 16
 
                     sampled_input = original_input[..., rand_mask]
 
-                    sampled_distance = -2 * einsum('... i d, j d -> ... i j', sampled_input, codebook)
+                    sampled_distance = -2 * einsum("... i d, j d -> ... i j", sampled_input, codebook)
 
-                    sampled_prob = (-sampled_distance * inv_temperature).softmax(dim = -1)
+                    sampled_prob = (-sampled_distance * inv_temperature).softmax(dim=-1)
 
                     per_sample_probs = sampled_prob
                 else:
                     if exists(mask):
                         original_input = original_input[mask]
-                    original_input = rearrange(original_input, 'b n ... -> (b n) ...')
+                    original_input = rearrange(original_input, "b n ... -> (b n) ...")
                     # the same as euclidean distance up to a constant
-                    distance = -2 * einsum('... i d, j d -> ... i j', original_input, codebook)
+                    distance = -2 * einsum("... i d, j d -> ... i j", original_input, codebook)
 
-                    prob = (-distance * inv_temperature).softmax(dim = -1)
+                    prob = (-distance * inv_temperature).softmax(dim=-1)
 
                     per_sample_probs = prob
 
@@ -424,7 +425,7 @@ class BinarySphericalQuantize(Module):
 
                 # distribution over all available tokens in the batch
 
-                avg_prob = reduce(per_sample_probs, '... c d -> c d', 'mean')
+                avg_prob = reduce(per_sample_probs, "... c d -> c d", "mean")
 
                 avg_prob = maybe_distributed_mean(avg_prob)
 
@@ -445,9 +446,8 @@ class BinarySphericalQuantize(Module):
 
             # commit loss
 
-            if self.training and self.commitment_loss_weight > 0.:
-
-                commit_loss = F.mse_loss(original_input, quantized.detach(), reduction = 'none')
+            if self.training and self.commitment_loss_weight > 0.0:
+                commit_loss = F.mse_loss(original_input, quantized.detach(), reduction="none")
 
                 if exists(mask):
                     commit_loss = commit_loss[mask]
@@ -463,7 +463,7 @@ class BinarySphericalQuantize(Module):
 
         # merge back codebook dim
 
-        x = rearrange(x, 'b n c d -> b n (c d)')
+        x = rearrange(x, "b n c d -> b n (c d)")
 
         # project out to feature dimension if needed
 
@@ -472,15 +472,15 @@ class BinarySphericalQuantize(Module):
         # reconstitute image or video dimensions
 
         if should_transpose:
-            x = unpack_one(x, ps, 'b * d')
-            x = rearrange(x, 'b ... d -> b d ...')
+            x = unpack_one(x, ps, "b * d")
+            x = rearrange(x, "b ... d -> b d ...")
 
-            indices = unpack_one(indices, ps, 'b * c')
+            indices = unpack_one(indices, ps, "b * c")
 
         # whether to remove single codebook dim
 
         if not self.keep_num_codebooks_dim:
-            indices = rearrange(indices, '... 1 -> ...')
+            indices = rearrange(indices, "... 1 -> ...")
 
         # complete aux loss
 
@@ -495,15 +495,9 @@ class BinarySphericalQuantize(Module):
 
         return ret, LossBreakdown(per_sample_entropy, codebook_entropy, commit_loss)
 
+
 class GroupedResidualBSQ(Module):
-    def __init__(
-        self,
-        *,
-        dim,
-        groups = 1,
-        accept_image_fmap = False,
-        **kwargs
-    ):
+    def __init__(self, *, dim, groups=1, accept_image_fmap=False, **kwargs):
         super().__init__()
         self.dim = dim
         self.groups = groups
@@ -515,10 +509,7 @@ class GroupedResidualBSQ(Module):
         self.rvqs = nn.ModuleList([])
 
         for _ in range(groups):
-            self.rvqs.append(LFQ(
-                dim = dim_per_group,
-                **kwargs
-            ))
+            self.rvqs.append(LFQ(dim=dim_per_group, **kwargs))
 
         self.codebook_size = self.rvqs[0].codebook_size
 
@@ -536,22 +527,17 @@ class GroupedResidualBSQ(Module):
 
     def get_output_from_indices(self, indices):
         outputs = tuple(rvq.get_output_from_indices(chunk_indices) for rvq, chunk_indices in zip(self.rvqs, indices))
-        return torch.cat(outputs, dim = self.split_dim)
+        return torch.cat(outputs, dim=self.split_dim)
 
-    def forward(
-        self,
-        x,
-        return_all_codes = False
-    ):
+    def forward(self, x, return_all_codes=False):
         shape, split_dim = x.shape, self.split_dim
         assert shape[split_dim] == self.dim
 
         # split the feature dimension into groups
 
-        x = x.chunk(self.groups, dim = split_dim)
+        x = x.chunk(self.groups, dim=split_dim)
 
-        forward_kwargs = dict(
-        )
+        forward_kwargs = dict()
 
         # invoke residual vq on each group
 
@@ -562,7 +548,7 @@ class GroupedResidualBSQ(Module):
 
         quantized, all_indices, *maybe_aux_loss = out
 
-        quantized = torch.cat(quantized, dim = split_dim)
+        quantized = torch.cat(quantized, dim=split_dim)
         all_indices = torch.stack(all_indices)
 
         ret = (quantized, all_indices, *maybe_aux_loss)

@@ -12,10 +12,12 @@ from torch import Tensor
 from torch.nn import functional as F
 import time
 
+
 def find_multiple(n: int, k: int) -> int:
     if n % k == 0:
         return n
     return n + k - (n % k)
+
 
 class AdaptiveLayerNorm(nn.Module):
     r"""Adaptive Layer Normalization"""
@@ -35,6 +37,7 @@ class AdaptiveLayerNorm(nn.Module):
         x = self.norm(x) * (1 + scale_msa) + shift_msa
         return x, gate_msa, shift_mlp, scale_mlp, gate_mlp
 
+
 class AdaptiveLayerNormFinal(nn.Module):
     r"""Adaptive Layer Normalization"""
 
@@ -52,6 +55,7 @@ class AdaptiveLayerNormFinal(nn.Module):
 
         x = self.norm(x) * (1 + scale) + shift
         return x
+
 
 @dataclass
 class ModelArgs:
@@ -79,6 +83,7 @@ class ModelArgs:
             self.intermediate_size = find_multiple(n_hidden, 256)
         # self.head_dim = self.dim // self.n_head
 
+
 class Transformer(nn.Module):
     def __init__(self, config: ModelArgs) -> None:
         super().__init__()
@@ -97,21 +102,19 @@ class Transformer(nn.Module):
         else:
             self.layers_emit_skip = []
             self.layers_receive_skip = []
-        freqs_cis = precompute_freqs_cis(self.config.block_size, self.config.head_dim,
-                                              self.config.rope_base)
+        freqs_cis = precompute_freqs_cis(self.config.block_size, self.config.head_dim, self.config.rope_base)
         self.register_buffer("freqs_cis", freqs_cis)
 
-        causal_mask = torch.tril(
-            torch.ones(self.max_seq_length, self.max_seq_length, dtype=torch.bool)
-        )
+        causal_mask = torch.tril(torch.ones(self.max_seq_length, self.max_seq_length, dtype=torch.bool))
         self.register_buffer("causal_mask", causal_mask)
 
-    def forward(self,
-                x: Tensor,
-                c: Tensor,
-                input_pos: Optional[Tensor] = None,
-                mask: Optional[Tensor] = None,
-                ) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        c: Tensor,
+        input_pos: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
+    ) -> Tensor:
         mask = mask[..., input_pos]
         freqs_cis = self.freqs_cis[input_pos]
         for i, layer in enumerate(self.layers):
@@ -127,12 +130,14 @@ class TransformerBlock(nn.Module):
         self.feed_forward = FeedForward(config)
         self.ffn_norm = RMSNorm(config.dim, eps=config.norm_eps)
         self.attention_norm = AdaptiveLayerNorm(config.dim, RMSNorm(config.dim, eps=config.norm_eps))
-    def forward(self,
-                x: Tensor,
-                c: Tensor,
-                freqs_cis: Tensor,
-                mask: Tensor,
-                ) -> Tensor:
+
+    def forward(
+        self,
+        x: Tensor,
+        c: Tensor,
+        freqs_cis: Tensor,
+        mask: Tensor,
+    ) -> Tensor:
         normed_x, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.attention_norm(x, emb=c)
         # attention
         attn_output = self.attention(normed_x, freqs_cis, mask)
@@ -164,13 +169,14 @@ class Attention(nn.Module):
         self.dim = config.dim
         self.attn_dropout_rate = config.attn_dropout_rate
 
-    def forward(self,
-                x: Tensor,
-                freqs_cis: Tensor,
-                mask: Tensor,
-                context: Optional[Tensor] = None,
-                context_freqs_cis: Optional[Tensor] = None,
-                ) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        freqs_cis: Tensor,
+        mask: Tensor,
+        context: Optional[Tensor] = None,
+        context_freqs_cis: Optional[Tensor] = None,
+    ) -> Tensor:
         bsz, seqlen, _ = x.shape
 
         kv_size = self.n_local_heads * self.head_dim
@@ -222,10 +228,7 @@ class RMSNorm(nn.Module):
         return output * self.weight
 
 
-def precompute_freqs_cis(
-        seq_len: int, n_elem: int, base: int = 10000,
-        dtype: torch.dtype = torch.bfloat16
-) -> Tensor:
+def precompute_freqs_cis(seq_len: int, n_elem: int, base: int = 10000, dtype: torch.dtype = torch.bfloat16) -> Tensor:
     freqs = 1.0 / (base ** (torch.arange(0, n_elem, 2)[: (n_elem // 2)].float() / n_elem))
     t = torch.arange(seq_len, device=freqs.device)
     freqs = torch.outer(t, freqs)
@@ -247,4 +250,3 @@ def apply_rotary_emb(x: Tensor, freqs_cis: Tensor) -> Tensor:
 
     x_out2 = x_out2.flatten(3)
     return x_out2.type_as(x)
-

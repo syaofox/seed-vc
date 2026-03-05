@@ -77,11 +77,7 @@ def custom_infer(
     if ce_dit_difference != cd_difference:
         ce_dit_difference = cd_difference
         print(f"Setting ce_dit_difference to {cd_difference} seconds.")
-    if (
-        prompt_condition is None
-        or reference_wav_name != new_reference_wav_name
-        or prompt_len != max_prompt_length
-    ):
+    if prompt_condition is None or reference_wav_name != new_reference_wav_name or prompt_len != max_prompt_length:
         prompt_len = max_prompt_length
         print(f"Setting max prompt length to {max_prompt_length} seconds.")
         reference_wav = reference_wav[: int(sr * prompt_len)]
@@ -100,9 +96,7 @@ def custom_infer(
 
         mel2 = to_mel(reference_wav_tensor.unsqueeze(0))
         target2_lengths = torch.LongTensor([mel2.size(2)]).to(mel2.device)
-        prompt_condition = model.length_regulator(
-            S_ori, ylens=target2_lengths, n_quantizers=3, f0=None
-        )[0]
+        prompt_condition = model.length_regulator(S_ori, ylens=target2_lengths, n_quantizers=3, f0=None)[0]
 
         reference_wav_name = new_reference_wav_name
 
@@ -129,21 +123,12 @@ def custom_infer(
     ce_dit_frame_difference = int(ce_dit_difference * 50)
     S_alt = S_alt[:, ce_dit_frame_difference:]
     target_lengths = torch.LongTensor(
-        [
-            (skip_head + return_length + skip_tail - ce_dit_frame_difference)
-            / 50
-            * sr
-            // hop_length
-        ]
+        [(skip_head + return_length + skip_tail - ce_dit_frame_difference) / 50 * sr // hop_length]
     ).to(S_alt.device)
     print(f"target_lengths: {target_lengths}")
-    cond = model.length_regulator(S_alt, ylens=target_lengths, n_quantizers=3, f0=None)[
-        0
-    ]
+    cond = model.length_regulator(S_alt, ylens=target_lengths, n_quantizers=3, f0=None)[0]
     cat_condition = torch.cat([prompt_condition, cond], dim=1)
-    with torch.autocast(
-        device_type=device.type, dtype=torch.float16 if fp16 else torch.float32
-    ):
+    with torch.autocast(device_type=device.type, dtype=torch.float16 if fp16 else torch.float32):
         vc_target = model.cfm.inference(
             cat_condition,
             torch.LongTensor([cat_condition.size(1)]).to(mel2.device),
@@ -200,9 +185,7 @@ def load_models(args):
     # Load additional modules
     from modules.campplus.DTDNN import CAMPPlus
 
-    campplus_ckpt_path = load_custom_model_from_hf(
-        "funasr/campplus", "campplus_cn_common.bin", config_filename=None
-    )
+    campplus_ckpt_path = load_custom_model_from_hf("funasr/campplus", "campplus_cn_common.bin", config_filename=None)
     campplus_model = CAMPPlus(feat_dim=80, embedding_size=192)
     campplus_model.load_state_dict(torch.load(campplus_ckpt_path, map_location="cpu"))
     campplus_model.eval()
@@ -214,9 +197,7 @@ def load_models(args):
         from modules.bigvgan import bigvgan
 
         bigvgan_name = model_params.vocoder.name
-        bigvgan_model = bigvgan.BigVGAN.from_pretrained(
-            bigvgan_name, use_cuda_kernel=False
-        )
+        bigvgan_model = bigvgan.BigVGAN.from_pretrained(bigvgan_name, use_cuda_kernel=False)
         # remove weight norm in the model and set to eval mode
         bigvgan_model.remove_weight_norm()
         bigvgan_model = bigvgan_model.eval().to(device)
@@ -230,9 +211,7 @@ def load_models(args):
             **hift_config["hift"],
             f0_predictor=ConvRNNF0Predictor(**hift_config["f0_predictor"]),
         )
-        hift_path = load_custom_model_from_hf(
-            "FunAudioLLM/CosyVoice-300M", "hift.pt", None
-        )
+        hift_path = load_custom_model_from_hf("FunAudioLLM/CosyVoice-300M", "hift.pt", None)
         hift_gen.load_state_dict(torch.load(hift_path, map_location="cpu"))
         hift_gen.eval()
         hift_gen.to(device)
@@ -253,10 +232,7 @@ def load_models(args):
         )
         _ = [vocos[key].eval().to(device) for key in vocos]
         _ = [vocos[key].to(device) for key in vocos]
-        total_params = sum(
-            sum(p.numel() for p in vocos[key].parameters() if p.requires_grad)
-            for key in vocos.keys()
-        )
+        total_params = sum(sum(p.numel() for p in vocos[key].parameters() if p.requires_grad) for key in vocos.keys())
         print(f"Vocoder model total parameters: {total_params / 1_000_000:.2f}M")
         vocoder_fn = vocos.decoder
     else:
@@ -268,9 +244,7 @@ def load_models(args):
         from transformers import AutoFeatureExtractor, WhisperModel
 
         whisper_name = model_params.speech_tokenizer.name
-        whisper_model = WhisperModel.from_pretrained(
-            whisper_name, torch_dtype=torch.float16
-        ).to(device)
+        whisper_model = WhisperModel.from_pretrained(whisper_name, torch_dtype=torch.float16).to(device)
         del whisper_model.decoder
         whisper_feature_extractor = AutoFeatureExtractor.from_pretrained(whisper_name)
 
@@ -301,18 +275,14 @@ def load_models(args):
         )
 
         hubert_model_name = config["model_params"]["speech_tokenizer"]["name"]
-        hubert_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
-            hubert_model_name
-        )
+        hubert_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(hubert_model_name)
         hubert_model = HubertModel.from_pretrained(hubert_model_name)
         hubert_model = hubert_model.to(device)
         hubert_model = hubert_model.eval()
         hubert_model = hubert_model.half()
 
         def semantic_fn(waves_16k):
-            ori_waves_16k_input_list = [
-                waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))
-            ]
+            ori_waves_16k_input_list = [waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))]
             ori_inputs = hubert_feature_extractor(
                 ori_waves_16k_input_list,
                 return_tensors="pt",
@@ -342,9 +312,7 @@ def load_models(args):
         wav2vec_model = wav2vec_model.half()
 
         def semantic_fn(waves_16k):
-            ori_waves_16k_input_list = [
-                waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))
-            ]
+            ori_waves_16k_input_list = [waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))]
             ori_inputs = wav2vec_feature_extractor(
                 ori_waves_16k_input_list,
                 return_tensors="pt",
@@ -368,9 +336,7 @@ def load_models(args):
         "num_mels": config["preprocess_params"]["spect_params"]["n_mels"],
         "sampling_rate": sr,
         "fmin": config["preprocess_params"]["spect_params"].get("fmin", 0),
-        "fmax": None
-        if config["preprocess_params"]["spect_params"].get("fmax", "None") == "None"
-        else 8000,
+        "fmax": None if config["preprocess_params"]["spect_params"].get("fmax", "None") == "None" else 8000,
         "center": False,
     }
     from modules.audio import mel_spectrogram
@@ -495,9 +461,7 @@ if __name__ == "__main__":
                     data = {
                         "sg_hostapi": self.hostapis[0],
                         "sg_wasapi_exclusive": False,
-                        "sg_input_device": self.input_devices[
-                            self.input_devices_indices.index(sd.default.device[0])
-                        ],
+                        "sg_input_device": self.input_devices[self.input_devices_indices.index(sd.default.device[0])],
                         "sg_output_device": self.output_devices[
                             self.output_devices_indices.index(sd.default.device[1])
                         ],
@@ -531,9 +495,7 @@ if __name__ == "__main__":
                                 ),
                                 sg.FileBrowse(
                                     "choose an audio file",
-                                    initial_folder=os.path.join(
-                                        os.getcwd(), "examples/reference"
-                                    ),
+                                    initial_folder=os.path.join(os.getcwd(), "examples/reference"),
                                     file_types=[
                                         ("WAV Files", "*.wav"),
                                         ("MP3 Files", "*.mp3"),
@@ -760,21 +722,14 @@ if __name__ == "__main__":
                         self.gui_config.sg_hostapi = self.hostapis[0]
                     self.window["sg_hostapi"].Update(values=self.hostapis)
                     self.window["sg_hostapi"].Update(value=self.gui_config.sg_hostapi)
-                    if (
-                        self.gui_config.sg_input_device not in self.input_devices
-                        and len(self.input_devices) > 0
-                    ):
+                    if self.gui_config.sg_input_device not in self.input_devices and len(self.input_devices) > 0:
                         self.gui_config.sg_input_device = self.input_devices[0]
                     self.window["sg_input_device"].Update(values=self.input_devices)
-                    self.window["sg_input_device"].Update(
-                        value=self.gui_config.sg_input_device
-                    )
+                    self.window["sg_input_device"].Update(value=self.gui_config.sg_input_device)
                     if self.gui_config.sg_output_device not in self.output_devices:
                         self.gui_config.sg_output_device = self.output_devices[0]
                     self.window["sg_output_device"].Update(values=self.output_devices)
-                    self.window["sg_output_device"].Update(
-                        value=self.gui_config.sg_output_device
-                    )
+                    self.window["sg_output_device"].Update(value=self.gui_config.sg_output_device)
                 if event == "start_vc" and not flag_vc:
                     if self.set_values(values) == True:
                         printt("cuda_is_available: %s", torch.cuda.is_available())
@@ -813,9 +768,7 @@ if __name__ == "__main__":
                                 + 0.01
                             )
                         self.window["sr_stream"].update(self.gui_config.samplerate)
-                        self.window["delay_time"].update(
-                            int(np.round(self.delay_time * 1000))
-                        )
+                        self.window["delay_time"].update(int(np.round(self.delay_time * 1000)))
                 # Parameter hot update
                 # if event == "threhold":
                 #     self.gui_config.threhold = values["threhold"]
@@ -877,47 +830,19 @@ if __name__ == "__main__":
             self.gui_config.channels = self.get_device_channels()
             self.zc = self.gui_config.samplerate // 50  # 44100 // 100 = 441
             self.block_frame = (
-                int(
-                    np.round(
-                        self.gui_config.block_time
-                        * self.gui_config.samplerate
-                        / self.zc
-                    )
-                )
-                * self.zc
+                int(np.round(self.gui_config.block_time * self.gui_config.samplerate / self.zc)) * self.zc
             )
             self.block_frame_16k = 320 * self.block_frame // self.zc
             self.crossfade_frame = (
-                int(
-                    np.round(
-                        self.gui_config.crossfade_time
-                        * self.gui_config.samplerate
-                        / self.zc
-                    )
-                )
-                * self.zc
+                int(np.round(self.gui_config.crossfade_time * self.gui_config.samplerate / self.zc)) * self.zc
             )
             self.sola_buffer_frame = min(self.crossfade_frame, 4 * self.zc)
             self.sola_search_frame = self.zc
             self.extra_frame = (
-                int(
-                    np.round(
-                        self.gui_config.extra_time_ce
-                        * self.gui_config.samplerate
-                        / self.zc
-                    )
-                )
-                * self.zc
+                int(np.round(self.gui_config.extra_time_ce * self.gui_config.samplerate / self.zc)) * self.zc
             )
             self.extra_frame_right = (
-                int(
-                    np.round(
-                        self.gui_config.extra_time_right
-                        * self.gui_config.samplerate
-                        / self.zc
-                    )
-                )
-                * self.zc
+                int(np.round(self.gui_config.extra_time_right * self.gui_config.samplerate / self.zc)) * self.zc
             )
             self.input_wav: torch.Tensor = torch.zeros(
                 self.extra_frame
@@ -942,9 +867,7 @@ if __name__ == "__main__":
             self.output_buffer: torch.Tensor = self.input_wav.clone()
             self.skip_head = self.extra_frame // self.zc
             self.skip_tail = self.extra_frame_right // self.zc
-            self.return_length = (
-                self.block_frame + self.sola_buffer_frame + self.sola_search_frame
-            ) // self.zc
+            self.return_length = (self.block_frame + self.sola_buffer_frame + self.sola_search_frame) // self.zc
             self.fade_in_window: torch.Tensor = (
                 torch.sin(
                     0.5
@@ -983,10 +906,7 @@ if __name__ == "__main__":
             global flag_vc
             if not flag_vc:
                 flag_vc = True
-                if (
-                    "WASAPI" in self.gui_config.sg_hostapi
-                    and self.gui_config.sg_wasapi_exclusive
-                ):
+                if "WASAPI" in self.gui_config.sg_hostapi and self.gui_config.sg_wasapi_exclusive:
                     extra_settings = sd.WasapiSettings(exclusive=True)
                 else:
                     extra_settings = None
@@ -1009,9 +929,7 @@ if __name__ == "__main__":
                     self.stream.close()
                     self.stream = None
 
-        def audio_callback(
-            self, indata: np.ndarray, outdata: np.ndarray, frames, times, status
-        ):
+        def audio_callback(self, indata: np.ndarray, outdata: np.ndarray, frames, times, status):
             """
             Audio block callback function
             """
@@ -1030,9 +948,7 @@ if __name__ == "__main__":
                 end_event = torch.cuda.Event(enable_timing=True)
                 torch.cuda.synchronize()
             start_event.record()
-            indata_16k = librosa.resample(
-                indata, orig_sr=self.gui_config.samplerate, target_sr=16000
-            )
+            indata_16k = librosa.resample(indata, orig_sr=self.gui_config.samplerate, target_sr=16000)
             res = self.vad_model.generate(
                 input=indata_16k,
                 cache=self.vad_cache,
@@ -1067,15 +983,9 @@ if __name__ == "__main__":
             #         if db_threhold[i]:
             #             indata[i * self.zc : (i + 1) * self.zc] = 0
             #     indata = indata[self.zc // 2 :]
-            self.input_wav[: -self.block_frame] = self.input_wav[
-                self.block_frame :
-            ].clone()
-            self.input_wav[-indata.shape[0] :] = torch.from_numpy(indata).to(
-                self.config.device
-            )
-            self.input_wav_res[: -self.block_frame_16k] = self.input_wav_res[
-                self.block_frame_16k :
-            ].clone()
+            self.input_wav[: -self.block_frame] = self.input_wav[self.block_frame :].clone()
+            self.input_wav[-indata.shape[0] :] = torch.from_numpy(indata).to(self.config.device)
+            self.input_wav_res[: -self.block_frame_16k] = self.input_wav_res[self.block_frame_16k :].clone()
             self.input_wav_res[-320 * (indata.shape[0] // self.zc + 1) :] = (
                 # self.resampler(self.input_wav[-indata.shape[0] - 2 * self.zc :])[
                 #     320:
@@ -1092,9 +1002,7 @@ if __name__ == "__main__":
             # infer
             if self.function == "vc":
                 if self.gui_config.extra_time_ce - self.gui_config.extra_time < 0:
-                    raise ValueError(
-                        "Content encoder extra context must be greater than DiT extra context!"
-                    )
+                    raise ValueError("Content encoder extra context must be greater than DiT extra context!")
                 if device.type == "mps":
                     start_event = torch.mps.event.Event(enable_timing=True)
                     end_event = torch.mps.event.Event(enable_timing=True)
@@ -1135,9 +1043,7 @@ if __name__ == "__main__":
                 infer_wav = self.input_wav[self.extra_frame :].clone()
 
             # SOLA algorithm from https://github.com/yxlllc/DDSP-SVC
-            conv_input = infer_wav[
-                None, None, : self.sola_buffer_frame + self.sola_search_frame
-            ]
+            conv_input = infer_wav[None, None, : self.sola_buffer_frame + self.sola_search_frame]
 
             cor_nom = F.conv1d(conv_input, self.sola_buffer[None, None, :])
             cor_den = torch.sqrt(
@@ -1163,19 +1069,9 @@ if __name__ == "__main__":
             # post_process_start = time.perf_counter()
             infer_wav = infer_wav[sola_offset:]
             infer_wav[: self.sola_buffer_frame] *= self.fade_in_window
-            infer_wav[: self.sola_buffer_frame] += (
-                self.sola_buffer * self.fade_out_window
-            )
-            self.sola_buffer[:] = infer_wav[
-                self.block_frame : self.block_frame + self.sola_buffer_frame
-            ]
-            outdata[:] = (
-                infer_wav[: self.block_frame]
-                .repeat(self.gui_config.channels, 1)
-                .t()
-                .cpu()
-                .numpy()
-            )
+            infer_wav[: self.sola_buffer_frame] += self.sola_buffer * self.fade_out_window
+            self.sola_buffer[:] = infer_wav[self.block_frame : self.block_frame + self.sola_buffer_frame]
+            outdata[:] = infer_wav[: self.block_frame].repeat(self.gui_config.channels, 1).t().cpu().numpy()
 
             total_time = time.perf_counter() - start_time
             if flag_vc:
@@ -1202,14 +1098,10 @@ if __name__ == "__main__":
             if hostapi_name not in self.hostapis:
                 hostapi_name = self.hostapis[0]
             self.input_devices = [
-                d["name"]
-                for d in devices
-                if d["max_input_channels"] > 0 and d["hostapi_name"] == hostapi_name
+                d["name"] for d in devices if d["max_input_channels"] > 0 and d["hostapi_name"] == hostapi_name
             ]
             self.output_devices = [
-                d["name"]
-                for d in devices
-                if d["max_output_channels"] > 0 and d["hostapi_name"] == hostapi_name
+                d["name"] for d in devices if d["max_output_channels"] > 0 and d["hostapi_name"] == hostapi_name
             ]
             self.input_devices_indices = [
                 d["index"] if "index" in d else d["name"]
@@ -1224,36 +1116,22 @@ if __name__ == "__main__":
 
         def set_devices(self, input_device, output_device):
             """set input and output devices."""
-            sd.default.device[0] = self.input_devices_indices[
-                self.input_devices.index(input_device)
-            ]
-            sd.default.device[1] = self.output_devices_indices[
-                self.output_devices.index(output_device)
-            ]
+            sd.default.device[0] = self.input_devices_indices[self.input_devices.index(input_device)]
+            sd.default.device[1] = self.output_devices_indices[self.output_devices.index(output_device)]
             printt("Input device: %s:%s", str(sd.default.device[0]), input_device)
             printt("Output device: %s:%s", str(sd.default.device[1]), output_device)
 
         def get_device_samplerate(self):
-            return int(
-                sd.query_devices(device=sd.default.device[0])["default_samplerate"]
-            )
+            return int(sd.query_devices(device=sd.default.device[0])["default_samplerate"])
 
         def get_device_channels(self):
-            max_input_channels = sd.query_devices(device=sd.default.device[0])[
-                "max_input_channels"
-            ]
-            max_output_channels = sd.query_devices(device=sd.default.device[1])[
-                "max_output_channels"
-            ]
+            max_input_channels = sd.query_devices(device=sd.default.device[0])["max_input_channels"]
+            max_output_channels = sd.query_devices(device=sd.default.device[1])["max_output_channels"]
             return min(max_input_channels, max_output_channels, 2)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--checkpoint-path", type=str, default=None, help="Path to the model checkpoint"
-    )
-    parser.add_argument(
-        "--config-path", type=str, default=None, help="Path to the vocoder checkpoint"
-    )
+    parser.add_argument("--checkpoint-path", type=str, default=None, help="Path to the model checkpoint")
+    parser.add_argument("--config-path", type=str, default=None, help="Path to the vocoder checkpoint")
     parser.add_argument(
         "--fp16",
         type=str2bool,

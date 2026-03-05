@@ -22,9 +22,7 @@ class ConvNextV2LayerNorm(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.data_format == "channels_last":
-            x = torch.nn.functional.layer_norm(
-                x, self.normalized_shape, self.weight, self.bias, self.eps
-            )
+            x = torch.nn.functional.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
         elif self.data_format == "channels_first":
             input_dtype = x.dtype
             x = x.float()
@@ -47,14 +45,18 @@ class GRN(nn.Module):
         Nx = Gx / (Gx.mean(dim=-1, keepdim=True) + 1e-6)
         return self.gamma * (x * Nx) + self.beta + x
 
+
 class InterpolationLayer(nn.Module):
-    def __init__(self, ):  # this is a default of 1 / 50 * (44100 / 512) / 4
+    def __init__(
+        self,
+    ):  # this is a default of 1 / 50 * (44100 / 512) / 4
         super().__init__()
         pass
 
     def forward(self, x: torch.Tensor, target_len: torch.Tensor, *args, **kwargs) -> torch.Tensor:
-        x = F.interpolate(x, size=target_len, mode='linear')
+        x = F.interpolate(x, size=target_len, mode="linear")
         return x
+
 
 class ConvNeXtV2Stage(nn.Module):
     def __init__(
@@ -80,10 +82,9 @@ class ConvNeXtV2Stage(nn.Module):
                 [
                     nn.Sequential(
                         ConvNextV2LayerNorm(dim, data_format="channels_first"),
-                        nn.Conv1d(
-                            dim, dim, kernel_size=downsample_factor, stride=downsample_factor
-                        ),
-                    ) for _, downsample_factor in zip(downsample_layer_indices, downsample_factors)
+                        nn.Conv1d(dim, dim, kernel_size=downsample_factor, stride=downsample_factor),
+                    )
+                    for _, downsample_factor in zip(downsample_layer_indices, downsample_factors)
                 ]
             )
             self.downsample_layer_indices = downsample_layer_indices
@@ -98,10 +99,9 @@ class ConvNeXtV2Stage(nn.Module):
                 [
                     nn.Sequential(
                         ConvNextV2LayerNorm(dim, data_format="channels_first"),
-                        nn.ConvTranspose1d(
-                            dim, dim, kernel_size=upsample_factor, stride=upsample_factor
-                        ),
-                    ) for _, upsample_factor in zip(upsample_layer_indices, upsample_factors)
+                        nn.ConvTranspose1d(dim, dim, kernel_size=upsample_factor, stride=upsample_factor),
+                    )
+                    for _, upsample_factor in zip(upsample_layer_indices, upsample_factors)
                 ]
             )
             self.upsample_layer_indices = upsample_layer_indices
@@ -111,12 +111,7 @@ class ConvNeXtV2Stage(nn.Module):
 
         # maybe interpolation layers
         if interpolation_layer_indices is not None:
-            self.interpolation_blocks = nn.ModuleList(
-                [
-                    InterpolationLayer()
-                    for _ in interpolation_layer_indices
-                ]
-            )
+            self.interpolation_blocks = nn.ModuleList([InterpolationLayer() for _ in interpolation_layer_indices])
             self.interpolation_layer_indices = interpolation_layer_indices
         else:
             self.interpolation_blocks = nn.ModuleList()
@@ -148,8 +143,8 @@ class ConvNeXtV2Stage(nn.Module):
 
     def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         x = self.input_projection(x)  # B, D, T
-        if hasattr(self, 'gin'):
-            g = kwargs['g']
+        if hasattr(self, "gin"):
+            g = kwargs["g"]
             x = x + self.gin(g)
         # pad to a multiple of cumprod(downsample_factors)
         if len(self.downsample_blocks) > 0:
@@ -167,7 +162,9 @@ class ConvNeXtV2Stage(nn.Module):
             if layer_idx in self.upsample_layer_indices:
                 x = self.upsample_blocks[self.upsample_layer_indices.index(layer_idx)](x)
             if layer_idx in self.interpolation_layer_indices:
-                x = self.interpolation_blocks[self.interpolation_layer_indices.index(layer_idx)](x, target_len=kwargs['target_len'])
+                x = self.interpolation_blocks[self.interpolation_layer_indices.index(layer_idx)](
+                    x, target_len=kwargs["target_len"]
+                )
             x = block(x)
         x = self.output_projection(x)
         return x
@@ -189,9 +186,7 @@ class ConvNeXtV2Block(nn.Module):
             dim, dim, kernel_size=7, padding=padding, groups=dim, dilation=dilation
         )  # depthwise conv
         self.norm = ConvNextV2LayerNorm(dim, data_format="channels_first")
-        self.pwconv1 = nn.Linear(
-            dim, intermediate_dim
-        )  # pointwise/1x1 convs, implemented with linear layers
+        self.pwconv1 = nn.Linear(dim, intermediate_dim)  # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
         self.grn = GRN(intermediate_dim)
         self.pwconv2 = nn.Linear(intermediate_dim, dim)

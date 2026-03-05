@@ -61,11 +61,7 @@ def get_run_info(run_name):
     if not os.path.exists(run_path):
         return None
 
-    config_file = (
-        "v2/vc_wrapper.yaml"
-        if os.path.exists(os.path.join(run_path, "vc_wrapper.yaml"))
-        else None
-    )
+    config_file = "v2/vc_wrapper.yaml" if os.path.exists(os.path.join(run_path, "vc_wrapper.yaml")) else None
 
     cfm_models = [f for f in os.listdir(run_path) if f.startswith("CFM_epoch_")]
     ar_models = [f for f in os.listdir(run_path) if f.startswith("AR_epoch_")]
@@ -156,11 +152,7 @@ def load_run_params(run_name):
             pass
 
     if not config_file:
-        config_files = [
-            f
-            for f in os.listdir(run_path)
-            if f.endswith((".yml", ".yaml")) and f != METADATA_FILE
-        ]
+        config_files = [f for f in os.listdir(run_path) if f.endswith((".yml", ".yaml")) and f != METADATA_FILE]
         if config_files:
             config_file = config_files[0]
 
@@ -375,11 +367,7 @@ def delete_run(run_name):
 def refresh_run_list(current_run_name=""):
     runs = get_run_list()
     choices = [r["name"] for r in runs]
-    selected = (
-        current_run_name
-        if current_run_name and current_run_name in choices
-        else (choices[0] if choices else "")
-    )
+    selected = current_run_name if current_run_name and current_run_name in choices else (choices[0] if choices else "")
     return gr.update(choices=choices, value=selected), gr.update(choices=choices)
 
 
@@ -427,9 +415,7 @@ def build_ui():
                         )
                     with gr.Column(scale=1):
                         refresh_btn = gr.Button("🔄 刷新", size="sm")
-                config_select = gr.Dropdown(
-                    label="Config 文件", choices=config_list, value=default_config
-                )
+                config_select = gr.Dropdown(label="Config 文件", choices=config_list, value=default_config)
                 dataset_dir = gr.Textbox(
                     label="Dataset 目录",
                     placeholder="/path/to/dataset",
@@ -439,25 +425,17 @@ def build_ui():
                 with gr.Row():
                     with gr.Column():
                         batch_size = gr.Number(label="Batch Size", value=2, precision=0)
-                        max_steps = gr.Number(
-                            label="Max Steps", value=1000, precision=0
-                        )
+                        max_steps = gr.Number(label="Max Steps", value=1000, precision=0)
                     with gr.Column():
-                        max_epochs = gr.Number(
-                            label="Max Epochs", value=1000, precision=0
-                        )
-                        save_interval = gr.Number(
-                            label="Save Interval", value=500, precision=0
-                        )
+                        max_epochs = gr.Number(label="Max Epochs", value=1000, precision=0)
+                        save_interval = gr.Number(label="Save Interval", value=500, precision=0)
 
                 with gr.Row():
                     with gr.Column():
                         train_cfm = gr.Checkbox(label="训练 CFM 模型", value=True)
                         train_ar = gr.Checkbox(label="训练 AR 模型", value=False)
                     with gr.Column():
-                        num_workers = gr.Number(
-                            label="Num Workers", value=0, precision=0
-                        )
+                        num_workers = gr.Number(label="Num Workers", value=0, precision=0)
                         gpu_id = gr.Number(label="GPU ID", value=0, precision=0)
 
         gr.Markdown("### 预训练检查点（可选，已有训练会自动加载）")
@@ -618,9 +596,7 @@ def build_ui():
 
         stop_btn.click(stop_training, outputs=[training_log, start_btn])
 
-        delete_btn.click(
-            delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name]
-        )
+        delete_btn.click(delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name])
 
         demo.load(refresh_run_list, outputs=[run_name_input, delete_run_name]).then(
             on_run_change,

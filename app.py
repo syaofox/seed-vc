@@ -31,9 +31,7 @@ def load_v2_models(args):
     vc_wrapper.to(device)
     vc_wrapper.eval()
 
-    vc_wrapper.setup_ar_caches(
-        max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device
-    )
+    vc_wrapper.setup_ar_caches(max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device)
 
     if args.compile:
         print("Compiling model with torch.compile...")
@@ -388,9 +386,7 @@ def main(args):
         gr.Markdown("# Seed Voice Conversion")
 
         if len(interfaces) > 1:
-            gr.Markdown(
-                "Choose between V1 (Voice & Singing Voice Conversion) or V2 (Voice & Style Conversion)"
-            )
+            gr.Markdown("Choose between V1 (Voice & Singing Voice Conversion) or V2 (Voice & Style Conversion)")
 
             with gr.Tabs():
                 for tab_name, interface in interfaces:
@@ -407,16 +403,12 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--compile", action="store_true", help="Compile the model using torch.compile"
-    )
+    parser.add_argument("--compile", action="store_true", help="Compile the model using torch.compile")
     parser.add_argument(
         "--enable-v1",
         action="store_true",
         help="Enable V1 (Voice & Singing Voice Conversion)",
     )
-    parser.add_argument(
-        "--enable-v2", action="store_true", help="Enable V2 (Voice & Style Conversion)"
-    )
+    parser.add_argument("--enable-v2", action="store_true", help="Enable V2 (Voice & Style Conversion)")
     args = parser.parse_args()
     main(args)

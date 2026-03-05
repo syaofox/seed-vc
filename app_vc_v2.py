@@ -52,15 +52,11 @@ def load_models(ar_checkpoint_path=None, cfm_checkpoint_path=None, compile=False
 
     cfg = DictConfig(yaml.safe_load(open("configs/v2/vc_wrapper.yaml", "r")))
     vc_wrapper = instantiate(cfg)
-    vc_wrapper.load_checkpoints(
-        ar_checkpoint_path=ar_checkpoint_path, cfm_checkpoint_path=cfm_checkpoint_path
-    )
+    vc_wrapper.load_checkpoints(ar_checkpoint_path=ar_checkpoint_path, cfm_checkpoint_path=cfm_checkpoint_path)
     vc_wrapper.to(device)
     vc_wrapper.eval()
 
-    vc_wrapper.setup_ar_caches(
-        max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device
-    )
+    vc_wrapper.setup_ar_caches(max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device)
 
     if compile:
         torch._inductor.config.coordinate_descent_tuning = True
@@ -90,9 +86,7 @@ def reload_model(model_name, compile_flag):
         cfm_path = cfm_files[0] if cfm_files else None
         status = f"正在加载微调模型: {model_name}..."
 
-    vc_wrapper_global = load_models(
-        ar_checkpoint_path=ar_path, cfm_checkpoint_path=cfm_path, compile=compile_flag
-    )
+    vc_wrapper_global = load_models(ar_checkpoint_path=ar_path, cfm_checkpoint_path=cfm_path, compile=compile_flag)
     current_model_name = model_name
 
     ref_audio = find_first_audio(selected["path"])
@@ -196,9 +190,7 @@ def main(args):
                 scale=4,
             )
             reload_btn = gr.Button("切换模型 / Reload Model", scale=1)
-        model_status = gr.Textbox(
-            value="默认模型已加载", label="状态 / Status", interactive=False, lines=2
-        )
+        model_status = gr.Textbox(value="默认模型已加载", label="状态 / Status", interactive=False, lines=2)
 
         gr.Markdown("---")
         gr.Markdown("### 语音转换 / Voice Conversion")
@@ -267,12 +259,8 @@ def main(args):
         ]
 
         outputs = [
-            gr.Audio(
-                label="Stream Output Audio / 流式输出", streaming=True, format="mp3"
-            ),
-            gr.Audio(
-                label="Full Output Audio / 完整输出", streaming=False, format="wav"
-            ),
+            gr.Audio(label="Stream Output Audio / 流式输出", streaming=True, format="mp3"),
+            gr.Audio(label="Full Output Audio / 完整输出", streaming=False, format="wav"),
         ]
 
         examples = [
@@ -327,9 +315,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--compile", action="store_true", help="Compile the model using torch.compile"
-    )
+    parser.add_argument("--compile", action="store_true", help="Compile the model using torch.compile")
     parser.add_argument(
         "--ar-checkpoint-path",
         type=str,

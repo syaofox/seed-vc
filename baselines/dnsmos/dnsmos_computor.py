@@ -21,19 +21,11 @@ INPUT_LENGTH = 9.01
 
 
 class DNSMOSComputer:
-    def __init__(
-        self, primary_model_path, p808_model_path, device="cuda", device_id=0
-    ) -> None:
-        self.onnx_sess = ort.InferenceSession(
-            primary_model_path, providers=["CUDAExecutionProvider"]
-        )
-        self.p808_onnx_sess = ort.InferenceSession(
-            p808_model_path, providers=["CUDAExecutionProvider"]
-        )
+    def __init__(self, primary_model_path, p808_model_path, device="cuda", device_id=0) -> None:
+        self.onnx_sess = ort.InferenceSession(primary_model_path, providers=["CUDAExecutionProvider"])
+        self.p808_onnx_sess = ort.InferenceSession(p808_model_path, providers=["CUDAExecutionProvider"])
         self.onnx_sess.set_providers(["CUDAExecutionProvider"], [{"device_id": device_id}])
-        self.p808_onnx_sess.set_providers(
-            ["CUDAExecutionProvider"], [{"device_id": device_id}]
-        )
+        self.p808_onnx_sess.set_providers(["CUDAExecutionProvider"], [{"device_id": device_id}])
         kwargs = {
             "sample_rate": 16000,
             "hop_length": 160,
@@ -43,9 +35,7 @@ class DNSMOSComputer:
         }
         self.mel_transform = torchaudio.transforms.MelSpectrogram(**kwargs).to(f"cuda:{device_id}")
 
-    def audio_melspec(
-        self, audio, n_mels=120, frame_size=320, hop_length=160, sr=16000, to_db=True
-    ):
+    def audio_melspec(self, audio, n_mels=120, frame_size=320, hop_length=160, sr=16000, to_db=True):
         mel_specgram = self.mel_transform(torch.Tensor(audio).cuda())
         mel_spec = mel_specgram.cpu()
         if to_db:
@@ -88,22 +78,18 @@ class DNSMOSComputer:
         predicted_p808_mos = []
 
         for idx in range(num_hops):
-            audio_seg = audio[
-                int(idx * hop_len_samples) : int((idx + INPUT_LENGTH) * hop_len_samples)
-            ]
+            audio_seg = audio[int(idx * hop_len_samples) : int((idx + INPUT_LENGTH) * hop_len_samples)]
             if len(audio_seg) < len_samples:
                 continue
             input_features = np.array(audio_seg).astype("float32")[np.newaxis, :]
-            p808_input_features = np.array(
-                self.audio_melspec(audio=audio_seg[:-160])
-            ).astype("float32")[np.newaxis, :, :]
+            p808_input_features = np.array(self.audio_melspec(audio=audio_seg[:-160])).astype("float32")[
+                np.newaxis, :, :
+            ]
             oi = {"input_1": input_features}
             p808_oi = {"input_1": p808_input_features}
             p808_mos = self.p808_onnx_sess.run(None, p808_oi)[0][0][0]
             mos_sig_raw, mos_bak_raw, mos_ovr_raw = self.onnx_sess.run(None, oi)[0][0]
-            mos_sig, mos_bak, mos_ovr = self.get_polyfit_val(
-                mos_sig_raw, mos_bak_raw, mos_ovr_raw, is_personalized_MOS
-            )
+            mos_sig, mos_bak, mos_ovr = self.get_polyfit_val(mos_sig_raw, mos_bak_raw, mos_ovr_raw, is_personalized_MOS)
             predicted_mos_sig_seg_raw.append(mos_sig_raw)
             predicted_mos_bak_seg_raw.append(mos_bak_raw)
             predicted_mos_ovr_seg_raw.append(mos_ovr_raw)

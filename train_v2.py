@@ -59,9 +59,7 @@ class Trainer:
             shutil.copy(config_path, dst_path)
 
         # Setup accelerator
-        ddp_kwargs = DistributedDataParallelKwargs(
-            find_unused_parameters=True, broadcast_buffers=False
-        )
+        ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)
         self.accelerator = Accelerator(
             project_dir=self.log_dir,
             split_batches=True,
@@ -150,12 +148,8 @@ class Trainer:
         available_checkpoints = glob.glob(os.path.join(self.log_dir, name_pattern))
         if len(available_checkpoints) > max_keep - 1:
             # find the checkpoint that has the highest step number
-            latest_checkpoint = max(
-                available_checkpoints, key=lambda x: int(x.split("_")[-1].split(".")[0])
-            )
-            earliest_checkpoint = min(
-                available_checkpoints, key=lambda x: int(x.split("_")[-1].split(".")[0])
-            )
+            latest_checkpoint = max(available_checkpoints, key=lambda x: int(x.split("_")[-1].split(".")[0]))
+            earliest_checkpoint = min(available_checkpoints, key=lambda x: int(x.split("_")[-1].split(".")[0]))
             # delete the earliest checkpoint
             if (
                 earliest_checkpoint != latest_checkpoint
@@ -170,12 +164,8 @@ class Trainer:
 
     def _load_checkpoint(self, pretrained_cfm_ckpt_path, pretrained_ar_ckpt_path):
         """Load checkpoint if available"""
-        cfm_checkpoint_path = pretrained_cfm_ckpt_path or self._find_checkpoint(
-            "CFM_epoch_*_step_*.pth", max_keep=1
-        )
-        ar_checkpoint_path = pretrained_ar_ckpt_path or self._find_checkpoint(
-            "AR_epoch_*_step_*.pth", max_keep=1
-        )
+        cfm_checkpoint_path = pretrained_cfm_ckpt_path or self._find_checkpoint("CFM_epoch_*_step_*.pth", max_keep=1)
+        ar_checkpoint_path = pretrained_ar_ckpt_path or self._find_checkpoint("AR_epoch_*_step_*.pth", max_keep=1)
 
         with self.accelerator.main_process_first():
             if cfm_checkpoint_path:
@@ -191,15 +181,11 @@ class Trainer:
     def filter_state_dict_shapes(self, params, model):
         model_state_dict = model.state_dict()
         filtered_state_dict = {
-            k: v
-            for k, v in params.items()
-            if k in model_state_dict and v.shape == model_state_dict[k].shape
+            k: v for k, v in params.items() if k in model_state_dict and v.shape == model_state_dict[k].shape
         }
         skipped_keys = set(params.keys()) - set(filtered_state_dict.keys())
         if skipped_keys:
-            print(
-                f"Warning: Skipped loading some keys due to shape mismatch: {skipped_keys}"
-            )
+            print(f"Warning: Skipped loading some keys due to shape mismatch: {skipped_keys}")
         return filtered_state_dict, skipped_keys
 
     def train(self):
@@ -224,9 +210,7 @@ class Trainer:
 
             # Log epoch completion
             if self.accelerator.is_main_process:
-                print(
-                    f"Epoch {epoch} completed in {time.time() - epoch_start_time:.2f} seconds"
-                )
+                print(f"Epoch {epoch} completed in {time.time() - epoch_start_time:.2f} seconds")
 
             if epoch + 1 >= self.max_epochs and self.accelerator.is_main_process:
                 print("Reached max epochs, stopping training")
@@ -256,9 +240,7 @@ class Trainer:
 
             self.accelerator.backward(loss)
 
-            grad_norm_g = torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), 1000.0
-            )
+            grad_norm_g = torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1000.0)
             self.optimizer.step()
             self.scheduler.step(self.iters)
             self.optimizer.zero_grad()
@@ -267,11 +249,7 @@ class Trainer:
         self._log_training_progress(epoch, i, loss, loss_ar, loss_cfm, grad_norm_g)
 
         # Save checkpoint
-        if (
-            self.iters != 0
-            and self.iters % self.save_interval == 0
-            and self.accelerator.is_main_process
-        ):
+        if self.iters != 0 and self.iters % self.save_interval == 0 and self.accelerator.is_main_process:
             self._save_checkpoint(epoch)
 
         # Increment iteration counter
@@ -304,16 +282,12 @@ class Trainer:
             state = {
                 "net": {
                     "ar": self.accelerator.unwrap_model(self.model).ar.state_dict(),
-                    "length_regulator": self.accelerator.unwrap_model(
-                        self.model
-                    ).ar_length_regulator.state_dict(),
+                    "length_regulator": self.accelerator.unwrap_model(self.model).ar_length_regulator.state_dict(),
                 },
                 "iters": self.iters,
                 "epoch": epoch,
             }
-            save_path = os.path.join(
-                self.log_dir, "AR_epoch_%05d_step_%05d.pth" % (epoch, self.iters)
-            )
+            save_path = os.path.join(self.log_dir, "AR_epoch_%05d_step_%05d.pth" % (epoch, self.iters))
             torch.save(state, save_path)
             print(f"Saved AR checkpoint to {save_path}")
 
@@ -323,16 +297,12 @@ class Trainer:
             state = {
                 "net": {
                     "cfm": self.accelerator.unwrap_model(self.model).cfm.state_dict(),
-                    "length_regulator": self.accelerator.unwrap_model(
-                        self.model
-                    ).cfm_length_regulator.state_dict(),
+                    "length_regulator": self.accelerator.unwrap_model(self.model).cfm_length_regulator.state_dict(),
                 },
                 "iters": self.iters,
                 "epoch": epoch,
             }
-            save_path = os.path.join(
-                self.log_dir, "CFM_epoch_%05d_step_%05d.pth" % (epoch, self.iters)
-            )
+            save_path = os.path.join(self.log_dir, "CFM_epoch_%05d_step_%05d.pth" % (epoch, self.iters))
             torch.save(state, save_path)
             print(f"Saved CFM checkpoint to {save_path}")
 

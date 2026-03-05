@@ -36,9 +36,7 @@ def load_v2_models(args):
     vc_wrapper.to(device)
     vc_wrapper.eval()
 
-    vc_wrapper.setup_ar_caches(
-        max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device
-    )
+    vc_wrapper.setup_ar_caches(max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device)
 
     if args.compile:
         torch._inductor.config.coordinate_descent_tuning = True
@@ -100,7 +98,9 @@ def main(args):
     target_name = os.path.basename(args.target).split(".")[0]
 
     # Create a descriptive filename
-    filename = f"vc_v2_{source_name}_{target_name}_{args.length_adjust}_{args.diffusion_steps}_{args.similarity_cfg_rate}.wav"
+    filename = (
+        f"vc_v2_{source_name}_{target_name}_{args.length_adjust}_{args.diffusion_steps}_{args.similarity_cfg_rate}.wav"
+    )
 
     output_path = os.path.join(args.output, filename)
     save_sr, converted_audio = converted_audio
@@ -112,21 +112,15 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Voice Conversion Inference Script")
-    parser.add_argument(
-        "--source", type=str, required=True, help="Path to source audio file"
-    )
-    parser.add_argument(
-        "--target", type=str, required=True, help="Path to target/reference audio file"
-    )
+    parser.add_argument("--source", type=str, required=True, help="Path to source audio file")
+    parser.add_argument("--target", type=str, required=True, help="Path to target/reference audio file")
     parser.add_argument(
         "--output",
         type=str,
         default="./output",
         help="Output directory for converted audio",
     )
-    parser.add_argument(
-        "--diffusion-steps", type=int, default=30, help="Number of diffusion steps"
-    )
+    parser.add_argument("--diffusion-steps", type=int, default=30, help="Number of diffusion steps")
     parser.add_argument(
         "--length-adjust",
         type=float,
@@ -153,9 +147,7 @@ if __name__ == "__main__":
         default=0.7,
         help="Similarity CFG rate for V2 model",
     )
-    parser.add_argument(
-        "--top-p", type=float, default=0.9, help="Top-p sampling parameter for V2 model"
-    )
+    parser.add_argument("--top-p", type=float, default=0.9, help="Top-p sampling parameter for V2 model")
     parser.add_argument(
         "--temperature",
         type=float,

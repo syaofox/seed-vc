@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 
+
 class CFM(torch.nn.Module):
     def __init__(
         self,
@@ -13,16 +14,17 @@ class CFM(torch.nn.Module):
         self.criterion = torch.nn.L1Loss()
 
     @torch.inference_mode()
-    def inference(self,
-                  mu: torch.Tensor,
-                  x_lens: torch.Tensor,
-                  prompt: torch.Tensor,
-                  style: torch.Tensor,
-                  n_timesteps=10,
-                  temperature=1.0,
-                  inference_cfg_rate=[0.5, 0.5],
-                  random_voice=False,
-                  ):
+    def inference(
+        self,
+        mu: torch.Tensor,
+        x_lens: torch.Tensor,
+        prompt: torch.Tensor,
+        style: torch.Tensor,
+        n_timesteps=10,
+        temperature=1.0,
+        inference_cfg_rate=[0.5, 0.5],
+        random_voice=False,
+    ):
         """Forward diffusion
 
         Args:
@@ -47,7 +49,18 @@ class CFM(torch.nn.Module):
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device)
         t_span = t_span + (-1) * (torch.cos(torch.pi / 2 * t_span) - 1 + t_span)
         return self.solve_euler(z, x_lens, prompt, mu, style, t_span, inference_cfg_rate, random_voice)
-    def solve_euler(self, x, x_lens, prompt, mu, style, t_span, inference_cfg_rate=[0.5, 0.5], random_voice=False,):
+
+    def solve_euler(
+        self,
+        x,
+        x_lens,
+        prompt,
+        mu,
+        style,
+        t_span,
+        inference_cfg_rate=[0.5, 0.5],
+        random_voice=False,
+    ):
         """
         Fixed euler solver for ODEs.
         Args:
@@ -84,7 +97,7 @@ class CFM(torch.nn.Module):
                     torch.cat([mu, torch.zeros_like(mu)], dim=0),
                 )
                 cond_txt, uncond = cfg_dphi_dt[0:1], cfg_dphi_dt[1:2]
-                dphi_dt = ((1.0 + inference_cfg_rate[0]) * cond_txt - inference_cfg_rate[0] * uncond)
+                dphi_dt = (1.0 + inference_cfg_rate[0]) * cond_txt - inference_cfg_rate[0] * uncond
             elif all(i == 0 for i in inference_cfg_rate):
                 dphi_dt = self.estimator(x, prompt_x, x_lens, t.unsqueeze(0), style, mu)
             elif inference_cfg_rate[0] == 0:
@@ -98,7 +111,7 @@ class CFM(torch.nn.Module):
                     torch.cat([mu, mu], dim=0),
                 )
                 cond_txt_spk, cond_txt = cfg_dphi_dt[0:1], cfg_dphi_dt[1:2]
-                dphi_dt = ((1.0 + inference_cfg_rate[1]) * cond_txt_spk - inference_cfg_rate[1] * cond_txt)
+                dphi_dt = (1.0 + inference_cfg_rate[1]) * cond_txt_spk - inference_cfg_rate[1] * cond_txt
             elif inference_cfg_rate[1] == 0:
                 cfg_dphi_dt = self.estimator(
                     torch.cat([x, x], dim=0),
@@ -109,7 +122,7 @@ class CFM(torch.nn.Module):
                     torch.cat([mu, torch.zeros_like(mu)], dim=0),
                 )
                 cond_txt_spk, uncond = cfg_dphi_dt[0:1], cfg_dphi_dt[1:2]
-                dphi_dt = ((1.0 + inference_cfg_rate[0]) * cond_txt_spk - inference_cfg_rate[0] * uncond)
+                dphi_dt = (1.0 + inference_cfg_rate[0]) * cond_txt_spk - inference_cfg_rate[0] * uncond
             else:
                 # Multi-condition Classifier-Free Guidance inference introduced in MegaTTS3
                 cfg_dphi_dt = self.estimator(
@@ -121,8 +134,11 @@ class CFM(torch.nn.Module):
                     torch.cat([mu, mu, torch.zeros_like(mu)], dim=0),
                 )
                 cond_txt_spk, cond_txt, uncond = cfg_dphi_dt[0:1], cfg_dphi_dt[1:2], cfg_dphi_dt[2:3]
-                dphi_dt = (1.0 + inference_cfg_rate[0] + inference_cfg_rate[1]) * cond_txt_spk - \
-                    inference_cfg_rate[0] * uncond - inference_cfg_rate[1] * cond_txt
+                dphi_dt = (
+                    (1.0 + inference_cfg_rate[0] + inference_cfg_rate[1]) * cond_txt_spk
+                    - inference_cfg_rate[0] * uncond
+                    - inference_cfg_rate[1] * cond_txt
+                )
             x = x + dt * dphi_dt
             t = t + dt
             if step < len(t_span) - 1:
@@ -160,14 +176,16 @@ class CFM(torch.nn.Module):
         u = x1 - (1 - self.sigma_min) * z
         prompt = torch.zeros_like(x1)
         for bib in range(b):
-            prompt[bib, :, :prompt_lens[bib]] = x1[bib, :, :prompt_lens[bib]]
+            prompt[bib, :, : prompt_lens[bib]] = x1[bib, :, : prompt_lens[bib]]
             # range covered by prompt are set to 0
-            y[bib, :, :prompt_lens[bib]] = 0
+            y[bib, :, : prompt_lens[bib]] = 0
 
         estimator_out = self.estimator(y, prompt, x_lens, t.squeeze(), style, mu)
         loss = 0
         for bib in range(b):
-            loss += self.criterion(estimator_out[bib, :, prompt_lens[bib]:x_lens[bib]], u[bib, :, prompt_lens[bib]:x_lens[bib]])
+            loss += self.criterion(
+                estimator_out[bib, :, prompt_lens[bib] : x_lens[bib]], u[bib, :, prompt_lens[bib] : x_lens[bib]]
+            )
         loss /= b
 
         return loss

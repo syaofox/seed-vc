@@ -7,6 +7,7 @@ from munch import Munch
 import json
 import argparse
 
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -16,6 +17,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -48,9 +50,7 @@ def intersperse(lst, item):
 def kl_divergence(m_p, logs_p, m_q, logs_q):
     """KL(P||Q)"""
     kl = (logs_q - logs_p) - 0.5
-    kl += (
-        0.5 * (torch.exp(2.0 * logs_p) + ((m_p - m_q) ** 2)) * torch.exp(-2.0 * logs_q)
-    )
+    kl += 0.5 * (torch.exp(2.0 * logs_p) + ((m_p - m_q) ** 2)) * torch.exp(-2.0 * logs_q)
     return kl
 
 
@@ -88,9 +88,7 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
     if x_lengths is None:
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
-    ids_str = ((torch.rand([b]).to(device=x.device) * ids_str_max).clip(0)).to(
-        dtype=torch.long
-    )
+    ids_str = ((torch.rand([b]).to(device=x.device) * ids_str_max).clip(0)).to(dtype=torch.long)
     ret = slice_segments(x, ids_str, segment_size)
     return ret, ids_str
 
@@ -98,9 +96,7 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
 def get_timing_signal_1d(length, channels, min_timescale=1.0, max_timescale=1.0e4):
     position = torch.arange(length, dtype=torch.float)
     num_timescales = channels // 2
-    log_timescale_increment = math.log(float(max_timescale) / float(min_timescale)) / (
-        num_timescales - 1
-    )
+    log_timescale_increment = math.log(float(max_timescale) / float(min_timescale)) / (num_timescales - 1)
     inv_timescales = min_timescale * torch.exp(
         torch.arange(num_timescales, dtype=torch.float) * -log_timescale_increment
     )
@@ -246,14 +242,10 @@ def modify_w2v_forward(self, output_layer=15):
         conv_attention_mask = attention_mask
         if attention_mask is not None:
             # make sure padded tokens output 0
-            hidden_states = hidden_states.masked_fill(
-                ~attention_mask.bool().unsqueeze(-1), 0.0
-            )
+            hidden_states = hidden_states.masked_fill(~attention_mask.bool().unsqueeze(-1), 0.0)
 
             # extend attention_mask
-            attention_mask = 1.0 - attention_mask[:, None, None, :].to(
-                dtype=hidden_states.dtype
-            )
+            attention_mask = 1.0 - attention_mask[:, None, None, :].to(dtype=hidden_states.dtype)
             attention_mask = attention_mask * torch.finfo(hidden_states.dtype).min
             attention_mask = attention_mask.expand(
                 attention_mask.shape[0],
@@ -278,11 +270,7 @@ def modify_w2v_forward(self, output_layer=15):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = torch.rand([])
 
-            skip_the_layer = (
-                True
-                if self.training and (dropout_probability < self.config.layerdrop)
-                else False
-            )
+            skip_the_layer = True if self.training and (dropout_probability < self.config.layerdrop) else False
             if not skip_the_layer or deepspeed_zero3_is_enabled:
                 # under deepspeed zero3 all gpus must run in sync
                 if self.gradient_checkpointing and self.training:
@@ -317,11 +305,7 @@ def modify_w2v_forward(self, output_layer=15):
             all_hidden_states = all_hidden_states + (hidden_states,)
 
         if not return_dict:
-            return tuple(
-                v
-                for v in [hidden_states, all_hidden_states, all_self_attentions]
-                if v is not None
-            )
+            return tuple(v for v in [hidden_states, all_hidden_states, all_self_attentions] if v is not None)
         return BaseModelOutput(
             last_hidden_state=hidden_states,
             hidden_states=all_hidden_states,
@@ -395,7 +379,9 @@ def build_model(args, stage="DiT"):
             is_discrete=args.length_regulator.is_discrete,
             in_channels=args.length_regulator.in_channels if hasattr(args.length_regulator, "in_channels") else None,
             codebook_size=args.length_regulator.content_codebook_size,
-            f0_condition=args.length_regulator.f0_condition if hasattr(args.length_regulator, "f0_condition") else False,
+            f0_condition=args.length_regulator.f0_condition
+            if hasattr(args.length_regulator, "f0_condition")
+            else False,
             n_f0_bins=args.length_regulator.n_f0_bins if hasattr(args.length_regulator, "n_f0_bins") else 512,
         )
         cfm = CFM(args)
@@ -441,15 +427,11 @@ def load_checkpoint(
             model_state_dict = model[key].state_dict()
             # 过滤出形状匹配的键值对
             filtered_state_dict = {
-                k: v
-                for k, v in params[key].items()
-                if k in model_state_dict and v.shape == model_state_dict[k].shape
+                k: v for k, v in params[key].items() if k in model_state_dict and v.shape == model_state_dict[k].shape
             }
             skipped_keys = set(params[key].keys()) - set(filtered_state_dict.keys())
             if skipped_keys:
-                print(
-                    f"Warning: Skipped loading some keys due to shape mismatch: {skipped_keys}"
-                )
+                print(f"Warning: Skipped loading some keys due to shape mismatch: {skipped_keys}")
             print("%s loaded" % key)
             model[key].load_state_dict(filtered_state_dict, strict=False)
     _ = [model[key].eval() for key in model]

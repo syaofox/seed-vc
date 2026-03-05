@@ -25,11 +25,7 @@ def get_run_list():
         full_path = os.path.join(RUNS_DIR, d)
         if os.path.isdir(full_path):
             has_model = os.path.exists(os.path.join(full_path, "ft_model.pth"))
-            has_config = os.path.exists(
-                os.path.join(
-                    full_path, "config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
-                )
-            )
+            has_config = os.path.exists(os.path.join(full_path, "config_dit_mel_seed_uvit_whisper_small_wavenet.yml"))
             if has_model or has_config:
                 runs.append({"name": d, "path": full_path})
     return runs
@@ -59,11 +55,7 @@ def get_run_info(run_name):
     if not os.path.exists(run_path):
         return None
 
-    config_files = [
-        f
-        for f in os.listdir(run_path)
-        if f.startswith("config_") and f.endswith(".yml")
-    ]
+    config_files = [f for f in os.listdir(run_path) if f.startswith("config_") and f.endswith(".yml")]
     config_file = config_files[0] if config_files else None
 
     model_exists = os.path.exists(os.path.join(run_path, "ft_model.pth"))
@@ -71,9 +63,7 @@ def get_run_info(run_name):
     return {"path": run_path, "config": config_file, "has_model": model_exists}
 
 
-def prepare_config(
-    config_path, run_name, batch_size, max_steps, max_epochs, save_interval, dataset_dir
-):
+def prepare_config(config_path, run_name, batch_size, max_steps, max_epochs, save_interval, dataset_dir):
     run_path = os.path.join(RUNS_DIR, run_name)
     existing_config = os.path.join(run_path, os.path.basename(config_path))
 
@@ -108,11 +98,7 @@ def load_run_params(run_name):
     if not os.path.exists(run_path):
         return None, None, None, None, None, None
 
-    config_files = [
-        f
-        for f in os.listdir(run_path)
-        if f.startswith("config_") and f.endswith(".yml")
-    ]
+    config_files = [f for f in os.listdir(run_path) if f.startswith("config_") and f.endswith(".yml")]
     if not config_files:
         return None, None, None, None, None, None
 
@@ -342,9 +328,7 @@ def build_ui():
                         )
                     with gr.Column(scale=1):
                         refresh_btn = gr.Button("🔄 刷新", size="sm")
-                config_select = gr.Dropdown(
-                    label="Config 文件", choices=config_list, value=default_config
-                )
+                config_select = gr.Dropdown(label="Config 文件", choices=config_list, value=default_config)
                 dataset_dir = gr.Textbox(
                     label="Dataset 目录",
                     placeholder="/path/to/dataset",
@@ -354,16 +338,10 @@ def build_ui():
                 with gr.Row():
                     with gr.Column():
                         batch_size = gr.Number(label="Batch Size", value=2, precision=0)
-                        max_steps = gr.Number(
-                            label="Max Steps", value=1000, precision=0
-                        )
+                        max_steps = gr.Number(label="Max Steps", value=1000, precision=0)
                     with gr.Column():
-                        max_epochs = gr.Number(
-                            label="Max Epochs", value=1000, precision=0
-                        )
-                        save_interval = gr.Number(
-                            label="Save Interval", value=500, precision=0
-                        )
+                        max_epochs = gr.Number(label="Max Epochs", value=1000, precision=0)
+                        save_interval = gr.Number(label="Save Interval", value=500, precision=0)
                 with gr.Row():
                     gpu_id = gr.Number(label="GPU ID", value=0, precision=0)
 
@@ -450,9 +428,7 @@ def build_ui():
 
         stop_btn.click(stop_training, outputs=[training_log, start_btn])
 
-        delete_btn.click(
-            delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name]
-        )
+        delete_btn.click(delete_run, inputs=[delete_run_name], outputs=[delete_msg, delete_run_name])
 
         demo.load(refresh_run_list, outputs=[run_name_input, delete_run_name])
 

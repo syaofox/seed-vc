@@ -51,12 +51,8 @@ class Trainer:
         self.save_interval = save_interval
 
         self.sr = config["preprocess_params"].get("sr", 22050)
-        self.hop_length = config["preprocess_params"]["spect_params"].get(
-            "hop_length", 256
-        )
-        self.win_length = config["preprocess_params"]["spect_params"].get(
-            "win_length", 1024
-        )
+        self.hop_length = config["preprocess_params"]["spect_params"].get("hop_length", 256)
+        self.win_length = config["preprocess_params"]["spect_params"].get("win_length", 1024)
         self.n_fft = config["preprocess_params"]["spect_params"].get("n_fft", 1024)
         preprocess_params = config["preprocess_params"]
 
@@ -84,9 +80,7 @@ class Trainer:
         self.model = build_model(self.model_params, stage="DiT")
 
         _ = [self.model[key].to(device) for key in self.model]
-        self.model.cfm.estimator.setup_caches(
-            max_batch_size=batch_size, max_seq_length=8192
-        )
+        self.model.cfm.estimator.setup_caches(max_batch_size=batch_size, max_seq_length=8192)
 
         # initialize optimizers after preparing models for compatibility with FSDP
         self.optimizer = build_optimizer(
@@ -96,9 +90,7 @@ class Trainer:
 
         if pretrained_ckpt_path is None:
             # find latest checkpoint
-            available_checkpoints = glob.glob(
-                os.path.join(self.log_dir, "DiT_epoch_*_step_*.pth")
-            )
+            available_checkpoints = glob.glob(os.path.join(self.log_dir, "DiT_epoch_*_step_*.pth"))
             if len(available_checkpoints) > 0:
                 latest_checkpoint = max(
                     available_checkpoints,
@@ -109,22 +101,15 @@ class Trainer:
                     key=lambda x: int(x.split("_")[-1].split(".")[0]),
                 )
                 # delete the earliest checkpoint if we have more than 2
-                if (
-                    earliest_checkpoint != latest_checkpoint
-                    and len(available_checkpoints) > 2
-                ):
+                if earliest_checkpoint != latest_checkpoint and len(available_checkpoints) > 2:
                     os.remove(earliest_checkpoint)
                     print(f"Removed {earliest_checkpoint}")
             elif config.get("pretrained_model", ""):
-                latest_checkpoint = load_custom_model_from_hf(
-                    "Plachta/Seed-VC", config["pretrained_model"], None
-                )
+                latest_checkpoint = load_custom_model_from_hf("Plachta/Seed-VC", config["pretrained_model"], None)
             else:
                 latest_checkpoint = ""
         else:
-            assert os.path.exists(pretrained_ckpt_path), (
-                f"Pretrained checkpoint {pretrained_ckpt_path} not found"
-            )
+            assert os.path.exists(pretrained_ckpt_path), f"Pretrained checkpoint {pretrained_ckpt_path} not found"
             latest_checkpoint = pretrained_ckpt_path
 
         if os.path.exists(latest_checkpoint):
@@ -145,9 +130,7 @@ class Trainer:
         from modules.campplus.DTDNN import CAMPPlus
 
         self.campplus_model = CAMPPlus(feat_dim=80, embedding_size=192)
-        campplus_sd_path = load_custom_model_from_hf(
-            "funasr/campplus", "campplus_cn_common.bin", config_filename=None
-        )
+        campplus_sd_path = load_custom_model_from_hf("funasr/campplus", "campplus_cn_common.bin", config_filename=None)
         campplus_sd = torch.load(campplus_sd_path, map_location="cpu")
         self.campplus_model.load_state_dict(campplus_sd)
         self.campplus_model.eval()
@@ -157,9 +140,7 @@ class Trainer:
     def build_f0_fn(self, device, config):
         from modules.rmvpe import RMVPE
 
-        model_path = load_custom_model_from_hf(
-            "lj1995/VoiceConversionWebUI", "rmvpe.pt", None
-        )
+        model_path = load_custom_model_from_hf("lj1995/VoiceConversionWebUI", "rmvpe.pt", None)
         self.rmvpe = RMVPE(model_path, is_half=False, device=device)
         self.f0_fn = self.rmvpe
 
@@ -183,9 +164,7 @@ class Trainer:
         if vocoder_type == "bigvgan":
             from modules.bigvgan import bigvgan
 
-            self.bigvgan_model = bigvgan.BigVGAN.from_pretrained(
-                vocoder_name, use_cuda_kernel=False
-            )
+            self.bigvgan_model = bigvgan.BigVGAN.from_pretrained(vocoder_name, use_cuda_kernel=False)
             self.bigvgan_model.remove_weight_norm()
             self.bigvgan_model = self.bigvgan_model.eval().to(device)
             vocoder_fn = self.bigvgan_model
@@ -194,9 +173,7 @@ class Trainer:
             from modules.hifigan.f0_predictor import ConvRNNF0Predictor
 
             hift_config = yaml.safe_load(open("configs/hifigan.yml", "r"))
-            hift_path = load_custom_model_from_hf(
-                "FunAudioLLM/CosyVoice-300M", "hift.pt", None
-            )
+            hift_path = load_custom_model_from_hf("FunAudioLLM/CosyVoice-300M", "hift.pt", None)
             self.hift_gen = HiFTGenerator(
                 **hift_config["hift"],
                 f0_predictor=ConvRNNF0Predictor(**hift_config["f0_predictor"]),
@@ -210,19 +187,13 @@ class Trainer:
         self.vocoder_fn = vocoder_fn
 
     def build_semantic_fn(self, device, config):
-        speech_tokenizer_type = config["model_params"]["speech_tokenizer"].get(
-            "type", "cosyvoice"
-        )
+        speech_tokenizer_type = config["model_params"]["speech_tokenizer"].get("type", "cosyvoice")
         if speech_tokenizer_type == "whisper":
             from transformers import AutoFeatureExtractor, WhisperModel
 
             whisper_model_name = config["model_params"]["speech_tokenizer"]["name"]
-            self.whisper_model = WhisperModel.from_pretrained(whisper_model_name).to(
-                device
-            )
-            self.whisper_feature_extractor = AutoFeatureExtractor.from_pretrained(
-                whisper_model_name
-            )
+            self.whisper_model = WhisperModel.from_pretrained(whisper_model_name).to(device)
+            self.whisper_feature_extractor = AutoFeatureExtractor.from_pretrained(whisper_model_name)
             # remove decoder to save memory
             del self.whisper_model.decoder
 
@@ -256,21 +227,15 @@ class Trainer:
 
             model_name = config["model_params"]["speech_tokenizer"]["name"]
             output_layer = config["model_params"]["speech_tokenizer"]["output_layer"]
-            self.wav2vec_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
-                model_name
-            )
+            self.wav2vec_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_name)
             self.wav2vec_model = Wav2Vec2Model.from_pretrained(model_name)
-            self.wav2vec_model.encoder.layers = self.wav2vec_model.encoder.layers[
-                :output_layer
-            ]
+            self.wav2vec_model.encoder.layers = self.wav2vec_model.encoder.layers[:output_layer]
             self.wav2vec_model = self.wav2vec_model.to(device)
             self.wav2vec_model = self.wav2vec_model.eval()
             self.wav2vec_model = self.wav2vec_model.half()
 
             def semantic_fn(waves_16k):
-                ori_waves_16k_input_list = [
-                    waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))
-                ]
+                ori_waves_16k_input_list = [waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))]
                 ori_inputs = self.wav2vec_feature_extractor(
                     ori_waves_16k_input_list,
                     return_tensors="pt",
@@ -285,9 +250,7 @@ class Trainer:
                 S_ori = ori_outputs.last_hidden_state.float()
                 return S_ori
         else:
-            raise ValueError(
-                f"Unsupported speech tokenizer type: {speech_tokenizer_type}"
-            )
+            raise ValueError(f"Unsupported speech tokenizer type: {speech_tokenizer_type}")
         self.semantic_fn = semantic_fn
 
     def train_one_step(self, batch):
@@ -311,22 +274,18 @@ class Trainer:
         ref_se = self.se_db[ref_se_idx].to(self.device)
 
         # convert
-        converted_waves_22k = self.tone_color_converter.convert(
-            waves_22k, wave_lengths_22k, se_batch, ref_se
-        ).squeeze(1)
+        converted_waves_22k = self.tone_color_converter.convert(waves_22k, wave_lengths_22k, se_batch, ref_se).squeeze(
+            1
+        )
 
         if self.sr != 22050:
-            converted_waves = torchaudio.functional.resample(
-                converted_waves_22k, 22050, self.sr
-            )
+            converted_waves = torchaudio.functional.resample(converted_waves_22k, 22050, self.sr)
         else:
             converted_waves = converted_waves_22k
 
         waves_16k = torchaudio.functional.resample(waves, self.sr, 16000)
         wave_lengths_16k = (wave_lengths.float() * 16000 / self.sr).long()
-        converted_waves_16k = torchaudio.functional.resample(
-            converted_waves, self.sr, 16000
-        )
+        converted_waves_16k = torchaudio.functional.resample(converted_waves, self.sr, 16000)
 
         # extract S_alt (perturbed speech tokens)
         S_ori = self.semantic_fn(waves_16k)
@@ -338,11 +297,11 @@ class Trainer:
             F0_ori = None
 
         # interpolate speech token to match acoustic feature length
-        alt_cond, _, alt_codes, alt_commitment_loss, alt_codebook_loss = (
-            self.model.length_regulator(S_alt, ylens=target_lengths, f0=F0_ori)
+        alt_cond, _, alt_codes, alt_commitment_loss, alt_codebook_loss = self.model.length_regulator(
+            S_alt, ylens=target_lengths, f0=F0_ori
         )
-        ori_cond, _, ori_codes, ori_commitment_loss, ori_codebook_loss = (
-            self.model.length_regulator(S_ori, ylens=target_lengths, f0=F0_ori)
+        ori_cond, _, ori_codes, ori_commitment_loss, ori_codebook_loss = self.model.length_regulator(
+            S_ori, ylens=target_lengths, f0=F0_ori
         )
         if alt_commitment_loss is None:
             alt_commitment_loss = 0
@@ -352,9 +311,7 @@ class Trainer:
 
         # randomly set a length as prompt
         prompt_len_max = target_lengths - 1
-        prompt_len = (
-            (torch.rand([B], device=alt_cond.device) * prompt_len_max).floor().long()
-        )
+        prompt_len = (torch.rand([B], device=alt_cond.device) * prompt_len_max).floor().long()
         prompt_len[torch.rand([B], device=alt_cond.device) < 0.1] = 0
 
         # for prompt cond token, use ori_cond instead of alt_cond
@@ -390,9 +347,7 @@ class Trainer:
         loss, _ = self.model.cfm(x, target_lengths, prompt_len, cond, y)
 
         loss_total = (
-            loss
-            + (alt_commitment_loss + ori_commitment_loss) * 0.05
-            + (ori_codebook_loss + alt_codebook_loss) * 0.15
+            loss + (alt_commitment_loss + ori_commitment_loss) * 0.05 + (ori_codebook_loss + alt_codebook_loss) * 0.15
         )
 
         self.optimizer.zero_grad()
@@ -412,8 +367,7 @@ class Trainer:
             batch = [b.to(self.device) for b in batch]
             loss = self.train_one_step(batch)
             self.ema_loss = (
-                self.ema_loss * self.loss_smoothing_rate
-                + loss * (1 - self.loss_smoothing_rate)
+                self.ema_loss * self.loss_smoothing_rate + loss * (1 - self.loss_smoothing_rate)
                 if self.iters > 0
                 else loss
             )

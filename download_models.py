@@ -249,17 +249,11 @@ def check_model_file(repo_id: str, filename: str) -> bool:
     from huggingface_hub import try_to_load_from_cache
 
     try:
-        cached_path = try_to_load_from_cache(
-            repo_id=repo_id, filename=filename, cache_dir=str(HF_CACHE)
-        )
+        cached_path = try_to_load_from_cache(repo_id=repo_id, filename=filename, cache_dir=str(HF_CACHE))
     except Exception:
         return False
 
-    if (
-        cached_path is not None
-        and isinstance(cached_path, (str, Path))
-        and os.path.exists(cached_path)
-    ):
+    if cached_path is not None and isinstance(cached_path, (str, Path)) and os.path.exists(cached_path):
         return True
     else:
         return False

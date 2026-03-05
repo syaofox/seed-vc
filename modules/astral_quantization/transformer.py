@@ -12,10 +12,12 @@ from torch import Tensor
 from torch.nn import functional as F
 import time
 
+
 def find_multiple(n: int, k: int) -> int:
     if n % k == 0:
         return n
     return n + k - (n % k)
+
 
 class AdaptiveLayerNorm(nn.Module):
     r"""Adaptive Layer Normalization"""
@@ -65,6 +67,7 @@ class ModelArgs:
             self.intermediate_size = find_multiple(n_hidden, 256)
         # self.head_dim = self.dim // self.n_head
 
+
 class Transformer(nn.Module):
     def __init__(self, config: ModelArgs) -> None:
         super().__init__()
@@ -75,26 +78,24 @@ class Transformer(nn.Module):
 
         self.max_batch_size = -1
         self.max_seq_length = config.block_size
-        freqs_cis = precompute_freqs_cis(self.config.block_size, self.config.head_dim,
-                                              self.config.rope_base)
+        freqs_cis = precompute_freqs_cis(self.config.block_size, self.config.head_dim, self.config.rope_base)
         self.register_buffer("freqs_cis", freqs_cis)
 
-        causal_mask = torch.tril(
-            torch.ones(self.max_seq_length, self.max_seq_length, dtype=torch.bool)
-        )
+        causal_mask = torch.tril(torch.ones(self.max_seq_length, self.max_seq_length, dtype=torch.bool))
         self.register_buffer("causal_mask", causal_mask)
 
-    def forward(self,
-                x: Tensor,
-                c: Tensor,
-                input_pos: Optional[Tensor] = None,
-                mask: Optional[Tensor] = None,
-                context: Optional[Tensor] = None,
-                context_input_pos: Optional[Tensor] = None,
-                cross_attention_mask: Optional[Tensor] = None,
-                ) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        c: Tensor,
+        input_pos: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
+        context: Optional[Tensor] = None,
+        context_input_pos: Optional[Tensor] = None,
+        cross_attention_mask: Optional[Tensor] = None,
+    ) -> Tensor:
         if mask is None:
-            mask = self.causal_mask[:x.size(1), :x.size(1)]
+            mask = self.causal_mask[: x.size(1), : x.size(1)]
         else:
             mask = mask[..., input_pos]
         freqs_cis = self.freqs_cis[input_pos]
@@ -124,20 +125,23 @@ class TransformerBlock(nn.Module):
         else:
             self.has_cross_attention = False
 
-    def forward(self,
-                x: Tensor,
-                c: Tensor,
-                freqs_cis: Tensor,
-                mask: Tensor,
-                context: Optional[Tensor] = None,
-                context_freqs_cis: Optional[Tensor] = None,
-                cross_attention_mask: Optional[Tensor] = None,
-                ) -> Tensor:
-        #time_attn_start = time.time()
+    def forward(
+        self,
+        x: Tensor,
+        c: Tensor,
+        freqs_cis: Tensor,
+        mask: Tensor,
+        context: Optional[Tensor] = None,
+        context_freqs_cis: Optional[Tensor] = None,
+        cross_attention_mask: Optional[Tensor] = None,
+    ) -> Tensor:
+        # time_attn_start = time.time()
         h = x + self.attention(self.attention_norm(x, c), freqs_cis, mask)
-        #print(f"time take for attention of sequence length {x.shape[1]} is {time.time() - time_attn_start}")
+        # print(f"time take for attention of sequence length {x.shape[1]} is {time.time() - time_attn_start}")
         if self.has_cross_attention:
-            h = h + self.cross_attention(self.cross_attention_norm(h, c), freqs_cis, cross_attention_mask, context, context_freqs_cis)
+            h = h + self.cross_attention(
+                self.cross_attention_norm(h, c), freqs_cis, cross_attention_mask, context, context_freqs_cis
+            )
         out = h + self.feed_forward(self.ffn_norm(h, c))
         return out
 
@@ -163,13 +167,14 @@ class Attention(nn.Module):
         self.dim = config.dim
         self.attn_dropout_rate = config.attn_dropout_rate
 
-    def forward(self,
-                x: Tensor,
-                freqs_cis: Tensor,
-                mask: Tensor,
-                context: Optional[Tensor] = None,
-                context_freqs_cis: Optional[Tensor] = None,
-                ) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        freqs_cis: Tensor,
+        mask: Tensor,
+        context: Optional[Tensor] = None,
+        context_freqs_cis: Optional[Tensor] = None,
+    ) -> Tensor:
         bsz, seqlen, _ = x.shape
 
         kv_size = self.n_local_heads * self.head_dim
@@ -192,7 +197,9 @@ class Attention(nn.Module):
 
         k = k.repeat_interleave(self.n_head // self.n_local_heads, dim=1)
         v = v.repeat_interleave(self.n_head // self.n_local_heads, dim=1)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.attn_dropout_rate if self.training else 0.0)
+        y = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, dropout_p=self.attn_dropout_rate if self.training else 0.0
+        )
 
         y = y.transpose(1, 2).contiguous().view(bsz, seqlen, self.head_dim * self.n_head)
 
@@ -226,10 +233,7 @@ class RMSNorm(nn.Module):
         return output * self.weight
 
 
-def precompute_freqs_cis(
-        seq_len: int, n_elem: int, base: int = 10000,
-        dtype: torch.dtype = torch.bfloat16
-) -> Tensor:
+def precompute_freqs_cis(seq_len: int, n_elem: int, base: int = 10000, dtype: torch.dtype = torch.bfloat16) -> Tensor:
     freqs = 1.0 / (base ** (torch.arange(0, n_elem, 2)[: (n_elem // 2)].float() / n_elem))
     t = torch.arange(seq_len, device=freqs.device)
     freqs = torch.outer(t, freqs)
@@ -251,4 +255,3 @@ def apply_rotary_emb(x: Tensor, freqs_cis: Tensor) -> Tensor:
 
     x_out2 = x_out2.flatten(3)
     return x_out2.type_as(x)
-

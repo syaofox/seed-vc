@@ -21,10 +21,12 @@ def find_multiple(n: int, k: int) -> int:
         return n
     return n + k - (n % k)
 
-def l2norm(t, groups = 1):
-    t = rearrange(t, '... (g d) -> ... g d', g = groups)
-    t = F.normalize(t, p = 2, dim = -1)
-    return rearrange(t, '... g d -> ... (g d)')
+
+def l2norm(t, groups=1):
+    t = rearrange(t, "... (g d) -> ... g d", g=groups)
+    t = F.normalize(t, p=2, dim=-1)
+    return rearrange(t, "... g d -> ... (g d)")
+
 
 @dataclass
 class BaseModelArgs:
@@ -73,9 +75,7 @@ class NaiveModelArgs(BaseModelArgs):
 
 
 class KVCache(nn.Module):
-    def __init__(
-        self, max_batch_size, max_seq_len, n_heads, head_dim, dtype=torch.bfloat16
-    ):
+    def __init__(self, max_batch_size, max_seq_len, n_heads, head_dim, dtype=torch.bfloat16):
         super().__init__()
         cache_shape = (max_batch_size, n_heads, max_seq_len, head_dim)
         self.register_buffer("k_cache", torch.zeros(cache_shape, dtype=dtype))
@@ -119,9 +119,7 @@ class BaseTransformer(nn.Module):
             config.vocab_size,
             config.dim,
         )
-        self.layers = nn.ModuleList(
-            TransformerBlock(config, use_sdpa=True) for _ in range(config.n_layer)
-        )
+        self.layers = nn.ModuleList(TransformerBlock(config, use_sdpa=True) for _ in range(config.n_layer))
         self.norm = RMSNorm(config.dim, eps=config.norm_eps)
 
         if self.config.tie_word_embeddings is False:
@@ -187,7 +185,7 @@ class BaseTransformer(nn.Module):
 
     def embed_base(self, x: Tensor, x_lens: Tensor) -> Tensor:
         for bib in range(x.size(0)):
-            x[bib, x_lens[bib]:] = self.config.vocab_size - 1
+            x[bib, x_lens[bib] :] = self.config.vocab_size - 1
 
         x_emb = self.embeddings(x)
         return x, x_emb
@@ -277,6 +275,7 @@ class BaseTransformer(nn.Module):
             if module.padding_idx is not None:
                 module.weight.data[module.padding_idx].zero_()
 
+
 class NaiveTransformer(BaseTransformer):
     def __init__(self, config: NaiveModelArgs) -> None:
         super().__init__(config, init_weights=False)
@@ -299,10 +298,13 @@ class NaiveTransformer(BaseTransformer):
         token_logits = parent_result.logits
 
         # construct targets for token_logits
-        token_targets = torch.zeros(token_logits.size(0), token_logits.size(1), dtype=torch.long,
-                                    device=target.device) - 100
+        token_targets = (
+            torch.zeros(token_logits.size(0), token_logits.size(1), dtype=torch.long, device=target.device) - 100
+        )
         for bib in range(token_targets.size(0)):
-            token_targets[bib, cond_lens[bib] + 1:cond_lens[bib] + target_lens[bib] + 1] = target[bib, :target_lens[bib]]
+            token_targets[bib, cond_lens[bib] + 1 : cond_lens[bib] + target_lens[bib] + 1] = target[
+                bib, : target_lens[bib]
+            ]
             token_targets[bib, cond_lens[bib] + target_lens[bib] + 1] = self.config.vocab_size - 1
         return TransformerForwardResult(
             token_logits=token_logits,
@@ -327,13 +329,16 @@ class NaiveTransformer(BaseTransformer):
         x = super().forward_generate(x, input_pos, kv_pos, vq_masks)
         return x
 
+
 class NaiveWrapper(nn.Module):
     def __init__(self, model: NaiveTransformer) -> None:
         super().__init__()
         self.model = model
         self.sep_token_emb = nn.Parameter(torch.randn(model.config.dim))
 
-    def setup_caches(self, max_batch_size: int, max_seq_len: int, dtype: torch.dtype = torch.bfloat16, device: torch.device = "cuda"):
+    def setup_caches(
+        self, max_batch_size: int, max_seq_len: int, dtype: torch.dtype = torch.bfloat16, device: torch.device = "cuda"
+    ):
         self.model.setup_caches(max_batch_size, max_seq_len, dtype, device)
 
     def forward(self, cond: Tensor, cond_lens: Tensor, x: Tensor, x_lens: Tensor) -> torch.Tensor:
@@ -342,22 +347,27 @@ class NaiveWrapper(nn.Module):
         _, x_emb = self.model.embed_base(x, x_lens)
         emb_seq_list = []
         for i in range(x.size(0)):
-            emb_seq = torch.cat([
-                sep_token_emb[i:i + 1],
-                cond[i:i+1, :cond_lens[i]],
-                sep_token_emb[i:i+1],
-                x_emb[i:i+1, :x_lens[i]]], dim=1)
+            emb_seq = torch.cat(
+                [
+                    sep_token_emb[i : i + 1],
+                    cond[i : i + 1, : cond_lens[i]],
+                    sep_token_emb[i : i + 1],
+                    x_emb[i : i + 1, : x_lens[i]],
+                ],
+                dim=1,
+            )
             emb_seq_list.append(emb_seq)
         max_len = max([emb_seq.size(1) for emb_seq in emb_seq_list])
-        emb_seq = torch.cat([
-            F.pad(emb_seq, (0, 0, 0, max_len - emb_seq.size(1)), value=0)
-            for emb_seq in emb_seq_list
-        ], dim=0)
+        emb_seq = torch.cat(
+            [F.pad(emb_seq, (0, 0, 0, max_len - emb_seq.size(1)), value=0) for emb_seq in emb_seq_list], dim=0
+        )
         # input_pos = torch.arange(emb_seq.size(1), device=emb_seq.device).repeat(emb_seq.size(0), 1)
         input_pos = torch.zeros(emb_seq.size(0), emb_seq.size(1), device=emb_seq.device, dtype=torch.long)
         for i in range(x.size(0)):
-            input_pos[i, :cond_lens[i] + 1] = torch.arange(cond_lens[i] + 1, device=emb_seq.device)
-            input_pos[i, cond_lens[i] + 1: cond_lens[i] + x_lens[i] + 2] = torch.arange(x_lens[i] + 1, device=emb_seq.device)
+            input_pos[i, : cond_lens[i] + 1] = torch.arange(cond_lens[i] + 1, device=emb_seq.device)
+            input_pos[i, cond_lens[i] + 1 : cond_lens[i] + x_lens[i] + 2] = torch.arange(
+                x_lens[i] + 1, device=emb_seq.device
+            )
         out = self.model(emb_seq, cond_lens, x, x_lens, input_pos=input_pos)
         loss = F.cross_entropy(out.token_logits.transpose(1, 2), out.token_targets.long(), ignore_index=-100)
         return loss
@@ -380,23 +390,27 @@ class NaiveWrapper(nn.Module):
 
     @torch.no_grad()
     def generate(
-            self,
-            prompt_text,
-            prompt_target,
-            compiled_decode_fn = None,
-            **sampling_kwargs,
+        self,
+        prompt_text,
+        prompt_target,
+        compiled_decode_fn=None,
+        **sampling_kwargs,
     ):
         sep_token_emb = self.sep_token_emb.expand(1, 1, -1)
         emb_seq = torch.cat([sep_token_emb, prompt_text, sep_token_emb], dim=1)
         input_pos = torch.arange(prompt_text.size(1) + 1, device=emb_seq.device)
         input_pos = torch.cat([input_pos, torch.LongTensor([0]).to(emb_seq.device)])
-        prompt_target_emb = self.model.embed_base(prompt_target,torch.LongTensor([prompt_target.size(1)]).to(prompt_target.device))[1]
+        prompt_target_emb = self.model.embed_base(
+            prompt_target, torch.LongTensor([prompt_target.size(1)]).to(prompt_target.device)
+        )[1]
         emb_seq = torch.cat([emb_seq, prompt_target_emb], dim=1)
         input_pos = torch.cat([input_pos, torch.arange(prompt_target_emb.size(1)).to(input_pos.device) + 1])
 
         pred_codes = []
         kv_pos = torch.arange(emb_seq.size(1), device=emb_seq.device)
-        next_tokens = self.decode_one_token_ar(emb_seq, input_pos, kv_pos, suppress_tokens=[self.model.config.vocab_size - 1], **sampling_kwargs)
+        next_tokens = self.decode_one_token_ar(
+            emb_seq, input_pos, kv_pos, suppress_tokens=[self.model.config.vocab_size - 1], **sampling_kwargs
+        )
         pred_base = next_tokens[0]
         pred_codes.append(pred_base)
         new_emb = self.model.embed_base(pred_base.unsqueeze(0), torch.LongTensor([1]).to(pred_base.device))[1]
@@ -412,7 +426,8 @@ class NaiveWrapper(nn.Module):
                 previous_tokens=torch.cat(pred_codes),
                 suppress_tokens=[self.model.config.vocab_size - 1] if suppress_eos else None,
                 compiled_decode_fn=compiled_decode_fn,
-                **sampling_kwargs)
+                **sampling_kwargs,
+            )
             pred_base = next_tokens[0]
             if pred_base == self.model.config.vocab_size - 1:
                 break
@@ -422,13 +437,13 @@ class NaiveWrapper(nn.Module):
         return torch.stack(pred_codes, dim=-1)
 
     def decode_one_token_ar(
-            self,
-            x: torch.Tensor,
-            input_pos: torch.Tensor,
-            kv_pos: torch.Tensor,
-            previous_tokens: torch.Tensor = None,
-            compiled_decode_fn = None,
-            **sampling_kwargs,
+        self,
+        x: torch.Tensor,
+        input_pos: torch.Tensor,
+        kv_pos: torch.Tensor,
+        previous_tokens: torch.Tensor = None,
+        compiled_decode_fn=None,
+        **sampling_kwargs,
     ) -> torch.Tensor:
         if compiled_decode_fn is not None:
             x = compiled_decode_fn(x, input_pos, kv_pos)
@@ -439,14 +454,13 @@ class NaiveWrapper(nn.Module):
         codebooks = [
             sample(
                 x.logits,
-                previous_tokens=(
-                    previous_tokens[0] if previous_tokens is not None else None
-                ),
+                previous_tokens=(previous_tokens[0] if previous_tokens is not None else None),
                 **sampling_kwargs_main,
             )[0]
         ]
         codebooks = torch.stack(codebooks, dim=0)
         return codebooks
+
 
 class TransformerBlock(nn.Module):
     def __init__(self, config: BaseModelArgs, use_sdpa: bool = True) -> None:
@@ -456,9 +470,7 @@ class TransformerBlock(nn.Module):
         self.ffn_norm = RMSNorm(config.dim, config.norm_eps)
         self.attention_norm = RMSNorm(config.dim, config.norm_eps)
 
-    def forward(
-        self, x: Tensor, freqs_cis: Tensor, mask: Tensor, input_pos: Tensor = None
-    ) -> Tensor:
+    def forward(self, x: Tensor, freqs_cis: Tensor, mask: Tensor, input_pos: Tensor = None) -> Tensor:
         h = x + self.attention(self.attention_norm(x), freqs_cis, mask, input_pos)
         out = h + self.feed_forward(self.ffn_norm(h))
         return out
@@ -471,9 +483,7 @@ class Attention(nn.Module):
 
         total_head_dim = (config.n_head + 2 * config.n_local_heads) * config.head_dim
         # key, query, value projections for all heads, but in a batch
-        self.wqkv = nn.Linear(
-            config.dim, total_head_dim, bias=config.attention_qkv_bias
-        )
+        self.wqkv = nn.Linear(config.dim, total_head_dim, bias=config.attention_qkv_bias)
         self.wo = nn.Linear(config.dim, config.dim, bias=False)
         self.kv_cache = None
 
@@ -493,6 +503,7 @@ class Attention(nn.Module):
         if self.qk_norm and self.qk_norm_dim_scale:
             self.qk_norm_q_scale = nn.Parameter(torch.ones(self.n_head, 1, self.head_dim))
             self.qk_norm_k_scale = nn.Parameter(torch.ones(self.n_head, 1, self.head_dim))
+
     def load_hook(self, state_dict, prefix, *args):
         if prefix + "wq.weight" in state_dict:
             wq = state_dict.pop(prefix + "wq.weight")
@@ -517,7 +528,7 @@ class Attention(nn.Module):
         v = v.view(bsz, seqlen, self.n_local_heads, self.head_dim)
 
         if self.qk_norm:
-            qk_l2norm = partial(l2norm, groups = self.qk_norm_groups)
+            qk_l2norm = partial(l2norm, groups=self.qk_norm_groups)
             q, k = map(qk_l2norm, (q, k))
             scale = self.qk_norm_scale
 
@@ -622,9 +633,7 @@ class RMSNorm(nn.Module):
 
 
 def precompute_freqs_cis(seq_len: int, n_elem: int, base: int = 10000) -> Tensor:
-    freqs = 1.0 / (
-        base ** (torch.arange(0, n_elem, 2)[: (n_elem // 2)].float() / n_elem)
-    )
+    freqs = 1.0 / (base ** (torch.arange(0, n_elem, 2)[: (n_elem // 2)].float() / n_elem))
     t = torch.arange(seq_len, device=freqs.device)
     freqs = torch.outer(t, freqs)
     freqs_cis = torch.polar(torch.ones_like(freqs), freqs)
@@ -646,9 +655,8 @@ def apply_rotary_emb(x: Tensor, freqs_cis: Tensor) -> Tensor:
     x_out2 = x_out2.flatten(3)
     return x_out2.type_as(x)
 
-def top_k_top_p_filtering(
-    logits, top_k=0, top_p=1.0, filter_value=-float("Inf"), min_tokens_to_keep=1
-):
+
+def top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("Inf"), min_tokens_to_keep=1):
     """Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
     Args:
         logits: logits distribution shape (batch size, vocabulary size)
@@ -659,18 +667,14 @@ def top_k_top_p_filtering(
     From: https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
     """
     if top_k > 0:
-        top_k = min(
-            max(top_k, min_tokens_to_keep), logits.size(-1)
-        )  # Safety check
+        top_k = min(max(top_k, min_tokens_to_keep), logits.size(-1))  # Safety check
         # Remove all tokens with a probability less than the last token of the top-k
         indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
         logits[indices_to_remove] = filter_value
 
     if top_p < 1.0:
         sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-        cumulative_probs = torch.cumsum(
-            F.softmax(sorted_logits, dim=-1), dim=-1
-        )
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
         # Remove tokens with cumulative probability above the threshold (token with 0 are kept)
         sorted_indices_to_remove = cumulative_probs > top_p
@@ -678,17 +682,14 @@ def top_k_top_p_filtering(
             # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
             sorted_indices_to_remove[..., :min_tokens_to_keep] = 0
         # Shift the indices to the right to keep also the first token above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
-            ..., :-1
-        ].clone()
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         sorted_indices_to_remove[..., 0] = 0
 
         # scatter sorted tensors to original indexing
-        indices_to_remove = sorted_indices_to_remove.scatter(
-            1, sorted_indices, sorted_indices_to_remove
-        )
+        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
         logits[indices_to_remove] = filter_value
     return logits
+
 
 def topk_sampling(logits, top_k=10, top_p=1.0, temperature=1.0):
     # temperature: (`optional`) float
@@ -709,16 +710,16 @@ def topk_sampling(logits, top_k=10, top_p=1.0, temperature=1.0):
     current_logprobs = logprobs[torch.arange(logprobs.shape[0]), token.squeeze(1)]
     return token, current_logprobs
 
+
 def sample(
     logits,
     previous_tokens: Optional[torch.Tensor] = None,
     **sampling_kwargs,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    probs = logits_to_probs(
-        logits=logits[0, -1], previous_tokens=previous_tokens, **sampling_kwargs
-    )
+    probs = logits_to_probs(logits=logits[0, -1], previous_tokens=previous_tokens, **sampling_kwargs)
     idx_next = multinomial_sample_one_no_sync(probs)
     return idx_next, probs
+
 
 def multinomial_sample_one_no_sync(
     probs_sort,
@@ -739,9 +740,7 @@ def logits_to_probs(
     if previous_tokens is not None:
         previous_tokens = previous_tokens.long()
         score = torch.gather(logits, dim=0, index=previous_tokens)
-        score = torch.where(
-            score < 0, score * repetition_penalty, score / repetition_penalty
-        )
+        score = torch.where(score < 0, score * repetition_penalty, score / repetition_penalty)
         logits.scatter_(dim=0, index=previous_tokens, src=score)
     if suppress_tokens is not None:
         for token in suppress_tokens:
@@ -752,9 +751,7 @@ def logits_to_probs(
     cum_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
     sorted_indices_to_remove = cum_probs > top_p
     sorted_indices_to_remove[0] = False  # keep at least one option
-    indices_to_remove = sorted_indices_to_remove.scatter(
-        dim=0, index=sorted_indices, src=sorted_indices_to_remove
-    )
+    indices_to_remove = sorted_indices_to_remove.scatter(dim=0, index=sorted_indices, src=sorted_indices_to_remove)
     logits = logits.masked_fill(indices_to_remove, -float("Inf"))
 
     logits = logits / max(temperature, 1e-5)

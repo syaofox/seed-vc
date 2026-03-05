@@ -36,12 +36,8 @@ class FT_Dataset(torch.utils.data.Dataset):
         self.sr = sr
         self.mel_fn_args = {
             "n_fft": spect_params["n_fft"],
-            "win_size": spect_params.get(
-                "win_length", spect_params.get("win_size", 1024)
-            ),
-            "hop_size": spect_params.get(
-                "hop_length", spect_params.get("hop_size", 256)
-            ),
+            "win_size": spect_params.get("win_length", spect_params.get("win_size", 1024)),
+            "hop_size": spect_params.get("hop_length", spect_params.get("hop_size", 256)),
             "num_mels": spect_params.get("n_mels", spect_params.get("num_mels", 80)),
             "sampling_rate": sr,
             "fmin": spect_params["fmin"],
@@ -64,10 +60,7 @@ class FT_Dataset(torch.utils.data.Dataset):
         except Exception as e:
             print(f"Failed to load wav file with error {e}")
             return self.__getitem__(random.randint(0, len(self)))
-        if (
-            len(speech) < self.sr * duration_setting["min"]
-            or len(speech) > self.sr * duration_setting["max"]
-        ):
+        if len(speech) < self.sr * duration_setting["min"] or len(speech) > self.sr * duration_setting["max"]:
             print(f"Audio {wav_path} is too short or too long, skipping")
             return self.__getitem__(random.randint(0, len(self)))
         if orig_sr != self.sr:
@@ -131,9 +124,7 @@ if __name__ == "__main__":
         "fmin": 0,
         "fmax": 8000,
     }
-    dataloader = build_ft_dataloader(
-        data_path, spect_params, sr, batch_size=2, num_workers=0
-    )
+    dataloader = build_ft_dataloader(data_path, spect_params, sr, batch_size=2, num_workers=0)
     for idx, batch in enumerate(dataloader):
         wave, mel, wave_lengths, mel_lengths = batch
         print(wave.shape, mel.shape)
