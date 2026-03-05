@@ -7,12 +7,15 @@
 Seed-VC 是零样本语音转换模型，支持零样本语音转换、实时语音转换、歌声转换及自定义数据微调。
 
 **技术栈**: Python 3.10+, PyTorch, Gradio, Hydra
+**音频采样率**: 22050Hz (v1/v2) 或 44100Hz (SVC)
 
 ## 环境配置
 
 ```bash
 # 使用 uv 管理虚拟环境（推荐）
 uv sync
+
+# 或使用 pip
 pip install -r requirements.txt
 ```
 
@@ -26,32 +29,28 @@ pip install -r requirements.txt
 
 ```bash
 # V1 模型
-python inference.py --source <源音频> --target <参考音频> --output <输出目录> \
-    --diffusion-steps 25 --fp16 True
+python inference.py --source <源音频> --target <参考音频> --output <输出目录>
 
 # V2 模型
 python inference_v2.py --source <源音频> --target <参考音频> --output <输出目录> \
-    --diffusion-steps 25 --cfm-checkpoint-path <cfm模型> --ar-checkpoint-path <ar模型>
+    --cfm-checkpoint-path <cfm模型> --ar-checkpoint-path <ar模型>
 ```
 
 ### 训练
 
 ```bash
 # V1 模型微调
-python train.py --config <配置文件> --dataset-dir <数据集> \
-    --run-name <名称> --batch-size 2 --max-steps 1000
+python train.py --config <配置文件> --dataset-dir <数据集> --run-name <名称>
 
 # V2 模型微调（支持多卡）
-uv run accelerate launch train_v2.py --dataset-dir <数据集> \
-    --run-name <名称> --batch-size 2 --max-steps 1000 --train-cfm --train-ar
+uv run accelerate launch train_v2.py --dataset-dir <数据集> --run-name <名称>
 ```
 
 ### Web UI
 
 ```bash
-python app_vc.py --checkpoint <模型> --config <配置> --fp16 True
+python app_vc.py --checkpoint <模型> --config <配置>
 python app_vc_v2.py --cfm-checkpoint-path <cfm> --ar-checkpoint-path <ar>
-python app.py --enable-v1 --enable-v2
 python real-time-gui.py --checkpoint-path <模型> --config-path <配置>
 ```
 
@@ -61,15 +60,27 @@ python real-time-gui.py --checkpoint-path <模型> --config-path <配置>
 # 运行 ruff 检查
 uv run ruff check .
 
-# 自动修复
+# 自动修复可自动修复的问题
 uv run ruff check . --fix
 
 # 代码格式化
 uv run ruff format .
 
-# 运行测试（如有）
+# 运行所有测试（如有）
 uv run pytest tests/ -v
+
+# 运行单个测试
 uv run pytest tests/test_file.py::test_function -v
+```
+
+**注意**: 当前项目暂无测试文件，pytest 命令仅作为预留。
+
+### 类型检查（可选）
+
+项目使用动态类型注解。如需严格类型检查，可使用 mypy：
+
+```bash
+uv run mypy . --ignore-missing-imports
 ```
 
 ## 代码规范
@@ -82,18 +93,14 @@ uv run pytest tests/test_file.py::test_function -v
 # 标准库
 import os
 import sys
-import json
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Dict, List
 
 # 第三方库
 import torch
 import numpy as np
-import librosa
-import yaml
 
 # 本地模块
 from modules.commons import str2bool
-from optimizers import build_optimizer
 ```
 
 ### 命名规范
@@ -104,39 +111,29 @@ from optimizers import build_optimizer
 
 ### 类型注解
 
-为公共函数添加类型注解：
-
-```python
-def get_padding(kernel_size: int, dilation: int = 1) -> int:
-    return int((kernel_size * dilation - dilation) / 2)
-
-def build_model(config: Dict, stage: str) -> Optional[torch.nn.Module]:
-    ...
-```
+为公共函数添加类型注解。
 
 ### 错误处理
 
-捕获具体异常，避免空捕获：
-
-```python
-# 推荐
-try:
-    config = yaml.safe_load(open(config_path))
-except FileNotFoundError:
-    raise FileNotFoundError(f"Config file not found: {config_path}")
-
-# 避免
-try:
-    config = yaml.safe_load(open(config_path))
-except:
-    pass
-```
+捕获具体异常，避免空捕获。
 
 ### 格式化
 
 - 最大行长度：120 字符
 - 使用 ruff 格式化
-- ruff 配置（pyproject.toml）：忽略 E402
+- ruff 配置（pyproject.toml）：忽略 E402, F401, F841 等
+
+### 代码风格
+
+- 使用 `from torch import nn` 和 `from torch.nn import functional as F` 简化导入
+- 使用 `munch.Munch` 或 `AttrDict` 处理配置字典
+- 避免使用 `*` 导入（如 `from module import *`）
+- 使用上下文管理器处理文件打开
+- 优先使用列表推导式而非循环
+
+### Docstrings
+
+为公共函数和类添加 docstrings。
 
 ## 注意事项
 
@@ -144,6 +141,20 @@ except:
 - 模型下载：首次运行自动下载，默认缓存 `./checkpoints/hf_cache`
 - 实时转换延迟 ≈ Block Time × 2 + Extra context (right) + 设备延迟(~100ms)
 - Mac 运行 `real-time-gui.py` 报错 `_tkinter` 缺失：需安装支持 Tkinter 的 Python
+
+## 项目结构
+
+```
+seed-vc/
+├── modules/          # 核心模型模块
+├── configs/          # 配置文件
+├── checkpoints/     # 模型权重
+├── inference.py     # V1 推理
+├── inference_v2.py  # V2 推理
+├── train.py         # V1 训练
+├── train_v2.py      # V2 训练
+└── real-time-gui.py # 实时转换 GUI
+```
 
 ## 预训练模型
 
