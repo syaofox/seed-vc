@@ -1,6 +1,5 @@
-import os
+from seed_vc.config import *
 
-os.environ["HF_HUB_CACHE"] = "./checkpoints/hf_cache"
 import gradio as gr
 import torch
 import torchaudio
@@ -626,7 +625,7 @@ def main(parsed_args):
             outputs=outputs,
             examples=examples,
             cache_examples=False,
-            allow_flagging="never",  
+            allow_flagging="never",
         )
 
     demo.launch(share=args.share)

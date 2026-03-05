@@ -1,7 +1,8 @@
+from seed_vc.config import *
+
 import os
 import signal
 
-os.environ["HF_HUB_CACHE"] = "./checkpoints/hf_cache"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import gradio as gr

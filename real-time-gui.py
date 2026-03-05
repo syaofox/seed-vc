@@ -1,3 +1,5 @@
+from seed_vc.config import *
+
 import os
 import sys
 from dotenv import load_dotenv
@@ -29,6 +31,7 @@ import os
 import sys
 import torch
 from modules.commons import str2bool
+
 # Load model and configuration
 device = None
 
@@ -40,20 +43,23 @@ reference_wav_name = ""
 prompt_len = 3  # in seconds
 ce_dit_difference = 2.0  # 2 seconds
 fp16 = False
+
+
 @torch.no_grad()
-def custom_infer(model_set,
-                 reference_wav,
-                 new_reference_wav_name,
-                 input_wav_res,
-                 block_frame_16k,
-                 skip_head,
-                 skip_tail,
-                 return_length,
-                 diffusion_steps,
-                 inference_cfg_rate,
-                 max_prompt_length,
-                 cd_difference=2.0,
-                 ):
+def custom_infer(
+    model_set,
+    reference_wav,
+    new_reference_wav_name,
+    input_wav_res,
+    block_frame_16k,
+    skip_head,
+    skip_tail,
+    return_length,
+    diffusion_steps,
+    inference_cfg_rate,
+    max_prompt_length,
+    cd_difference=2.0,
+):
     global prompt_condition, mel2, style2
     global reference_wav_name
     global prompt_len
@@ -71,16 +77,23 @@ def custom_infer(model_set,
     if ce_dit_difference != cd_difference:
         ce_dit_difference = cd_difference
         print(f"Setting ce_dit_difference to {cd_difference} seconds.")
-    if prompt_condition is None or reference_wav_name != new_reference_wav_name or prompt_len != max_prompt_length:
+    if (
+        prompt_condition is None
+        or reference_wav_name != new_reference_wav_name
+        or prompt_len != max_prompt_length
+    ):
         prompt_len = max_prompt_length
         print(f"Setting max prompt length to {max_prompt_length} seconds.")
-        reference_wav = reference_wav[:int(sr * prompt_len)]
+        reference_wav = reference_wav[: int(sr * prompt_len)]
         reference_wav_tensor = torch.from_numpy(reference_wav).to(device)
 
         ori_waves_16k = torchaudio.functional.resample(reference_wav_tensor, sr, 16000)
         S_ori = semantic_fn(ori_waves_16k.unsqueeze(0))
         feat2 = torchaudio.compliance.kaldi.fbank(
-            ori_waves_16k.unsqueeze(0), num_mel_bins=80, dither=0, sample_frequency=16000
+            ori_waves_16k.unsqueeze(0),
+            num_mel_bins=80,
+            dither=0,
+            sample_frequency=16000,
         )
         feat2 = feat2 - feat2.mean(dim=0, keepdim=True)
         style2 = campplus_model(feat2.unsqueeze(0))
@@ -115,13 +128,22 @@ def custom_infer(model_set,
 
     ce_dit_frame_difference = int(ce_dit_difference * 50)
     S_alt = S_alt[:, ce_dit_frame_difference:]
-    target_lengths = torch.LongTensor([(skip_head + return_length + skip_tail - ce_dit_frame_difference) / 50 * sr // hop_length]).to(S_alt.device)
+    target_lengths = torch.LongTensor(
+        [
+            (skip_head + return_length + skip_tail - ce_dit_frame_difference)
+            / 50
+            * sr
+            // hop_length
+        ]
+    ).to(S_alt.device)
     print(f"target_lengths: {target_lengths}")
-    cond = model.length_regulator(
-        S_alt, ylens=target_lengths , n_quantizers=3, f0=None
-    )[0]
+    cond = model.length_regulator(S_alt, ylens=target_lengths, n_quantizers=3, f0=None)[
+        0
+    ]
     cat_condition = torch.cat([prompt_condition, cond], dim=1)
-    with torch.autocast(device_type=device.type, dtype=torch.float16 if fp16 else torch.float32):
+    with torch.autocast(
+        device_type=device.type, dtype=torch.float16 if fp16 else torch.float32
+    ):
         vc_target = model.cfm.inference(
             cat_condition,
             torch.LongTensor([cat_condition.size(1)]).to(mel2.device),
@@ -136,24 +158,27 @@ def custom_infer(model_set,
         vc_wave = vocoder_fn(vc_target).squeeze()
     output_len = return_length * sr // 50
     tail_len = skip_tail * sr // 50
-    output = vc_wave[-output_len - tail_len: -tail_len]
+    output = vc_wave[-output_len - tail_len : -tail_len]
 
     return output
+
 
 def load_models(args):
     global fp16
     fp16 = args.fp16
     print(f"Using fp16: {fp16}")
     if args.checkpoint_path is None or args.checkpoint_path == "":
-        dit_checkpoint_path, dit_config_path = load_custom_model_from_hf("Plachta/Seed-VC",
-                                                                         "DiT_uvit_tat_xlsr_ema.pth",
-                                                                         "config_dit_mel_seed_uvit_xlsr_tiny.yml")
+        dit_checkpoint_path, dit_config_path = load_custom_model_from_hf(
+            "Plachta/Seed-VC",
+            "DiT_uvit_tat_xlsr_ema.pth",
+            "config_dit_mel_seed_uvit_xlsr_tiny.yml",
+        )
     else:
         dit_checkpoint_path = args.checkpoint_path
         dit_config_path = args.config_path
     config = yaml.safe_load(open(dit_config_path, "r"))
     model_params = recursive_munch(config["model_params"])
-    model_params.dit_type = 'DiT'
+    model_params.dit_type = "DiT"
     model = build_model(model_params, stage="DiT")
     hop_length = config["preprocess_params"]["spect_params"]["hop_length"]
     sr = config["preprocess_params"]["sr"]
@@ -185,55 +210,79 @@ def load_models(args):
 
     vocoder_type = model_params.vocoder.type
 
-    if vocoder_type == 'bigvgan':
+    if vocoder_type == "bigvgan":
         from modules.bigvgan import bigvgan
+
         bigvgan_name = model_params.vocoder.name
-        bigvgan_model = bigvgan.BigVGAN.from_pretrained(bigvgan_name, use_cuda_kernel=False)
+        bigvgan_model = bigvgan.BigVGAN.from_pretrained(
+            bigvgan_name, use_cuda_kernel=False
+        )
         # remove weight norm in the model and set to eval mode
         bigvgan_model.remove_weight_norm()
         bigvgan_model = bigvgan_model.eval().to(device)
         vocoder_fn = bigvgan_model
-    elif vocoder_type == 'hifigan':
+    elif vocoder_type == "hifigan":
         from modules.hifigan.generator import HiFTGenerator
         from modules.hifigan.f0_predictor import ConvRNNF0Predictor
-        hift_config = yaml.safe_load(open('configs/hifigan.yml', 'r'))
-        hift_gen = HiFTGenerator(**hift_config['hift'], f0_predictor=ConvRNNF0Predictor(**hift_config['f0_predictor']))
-        hift_path = load_custom_model_from_hf("FunAudioLLM/CosyVoice-300M", 'hift.pt', None)
-        hift_gen.load_state_dict(torch.load(hift_path, map_location='cpu'))
+
+        hift_config = yaml.safe_load(open("configs/hifigan.yml", "r"))
+        hift_gen = HiFTGenerator(
+            **hift_config["hift"],
+            f0_predictor=ConvRNNF0Predictor(**hift_config["f0_predictor"]),
+        )
+        hift_path = load_custom_model_from_hf(
+            "FunAudioLLM/CosyVoice-300M", "hift.pt", None
+        )
+        hift_gen.load_state_dict(torch.load(hift_path, map_location="cpu"))
         hift_gen.eval()
         hift_gen.to(device)
         vocoder_fn = hift_gen
     elif vocoder_type == "vocos":
-        vocos_config = yaml.safe_load(open(model_params.vocoder.vocos.config, 'r'))
+        vocos_config = yaml.safe_load(open(model_params.vocoder.vocos.config, "r"))
         vocos_path = model_params.vocoder.vocos.path
-        vocos_model_params = recursive_munch(vocos_config['model_params'])
-        vocos = build_model(vocos_model_params, stage='mel_vocos')
+        vocos_model_params = recursive_munch(vocos_config["model_params"])
+        vocos = build_model(vocos_model_params, stage="mel_vocos")
         vocos_checkpoint_path = vocos_path
-        vocos, _, _, _ = load_checkpoint(vocos, None, vocos_checkpoint_path,
-                                         load_only_params=True, ignore_modules=[], is_distributed=False)
+        vocos, _, _, _ = load_checkpoint(
+            vocos,
+            None,
+            vocos_checkpoint_path,
+            load_only_params=True,
+            ignore_modules=[],
+            is_distributed=False,
+        )
         _ = [vocos[key].eval().to(device) for key in vocos]
         _ = [vocos[key].to(device) for key in vocos]
-        total_params = sum(sum(p.numel() for p in vocos[key].parameters() if p.requires_grad) for key in vocos.keys())
+        total_params = sum(
+            sum(p.numel() for p in vocos[key].parameters() if p.requires_grad)
+            for key in vocos.keys()
+        )
         print(f"Vocoder model total parameters: {total_params / 1_000_000:.2f}M")
         vocoder_fn = vocos.decoder
     else:
         raise ValueError(f"Unknown vocoder type: {vocoder_type}")
 
     speech_tokenizer_type = model_params.speech_tokenizer.type
-    if speech_tokenizer_type == 'whisper':
+    if speech_tokenizer_type == "whisper":
         # whisper
         from transformers import AutoFeatureExtractor, WhisperModel
+
         whisper_name = model_params.speech_tokenizer.name
-        whisper_model = WhisperModel.from_pretrained(whisper_name, torch_dtype=torch.float16).to(device)
+        whisper_model = WhisperModel.from_pretrained(
+            whisper_name, torch_dtype=torch.float16
+        ).to(device)
         del whisper_model.decoder
         whisper_feature_extractor = AutoFeatureExtractor.from_pretrained(whisper_name)
 
         def semantic_fn(waves_16k):
-            ori_inputs = whisper_feature_extractor([waves_16k.squeeze(0).cpu().numpy()],
-                                                   return_tensors="pt",
-                                                   return_attention_mask=True)
+            ori_inputs = whisper_feature_extractor(
+                [waves_16k.squeeze(0).cpu().numpy()],
+                return_tensors="pt",
+                return_attention_mask=True,
+            )
             ori_input_features = whisper_model._mask_input_features(
-                ori_inputs.input_features, attention_mask=ori_inputs.attention_mask).to(device)
+                ori_inputs.input_features, attention_mask=ori_inputs.attention_mask
+            ).to(device)
             with torch.no_grad():
                 ori_outputs = whisper_model.encoder(
                     ori_input_features.to(whisper_model.encoder.dtype),
@@ -243,15 +292,18 @@ def load_models(args):
                     return_dict=True,
                 )
             S_ori = ori_outputs.last_hidden_state.to(torch.float32)
-            S_ori = S_ori[:, :waves_16k.size(-1) // 320 + 1]
+            S_ori = S_ori[:, : waves_16k.size(-1) // 320 + 1]
             return S_ori
-    elif speech_tokenizer_type == 'cnhubert':
+    elif speech_tokenizer_type == "cnhubert":
         from transformers import (
             Wav2Vec2FeatureExtractor,
             HubertModel,
         )
-        hubert_model_name = config['model_params']['speech_tokenizer']['name']
-        hubert_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(hubert_model_name)
+
+        hubert_model_name = config["model_params"]["speech_tokenizer"]["name"]
+        hubert_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+            hubert_model_name
+        )
         hubert_model = HubertModel.from_pretrained(hubert_model_name)
         hubert_model = hubert_model.to(device)
         hubert_model = hubert_model.eval()
@@ -259,27 +311,29 @@ def load_models(args):
 
         def semantic_fn(waves_16k):
             ori_waves_16k_input_list = [
-                waves_16k[bib].cpu().numpy()
-                for bib in range(len(waves_16k))
+                waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))
             ]
-            ori_inputs = hubert_feature_extractor(ori_waves_16k_input_list,
-                                                  return_tensors="pt",
-                                                  return_attention_mask=True,
-                                                  padding=True,
-                                                  sampling_rate=16000).to(device)
+            ori_inputs = hubert_feature_extractor(
+                ori_waves_16k_input_list,
+                return_tensors="pt",
+                return_attention_mask=True,
+                padding=True,
+                sampling_rate=16000,
+            ).to(device)
             with torch.no_grad():
                 ori_outputs = hubert_model(
                     ori_inputs.input_values.half(),
                 )
             S_ori = ori_outputs.last_hidden_state.float()
             return S_ori
-    elif speech_tokenizer_type == 'xlsr':
+    elif speech_tokenizer_type == "xlsr":
         from transformers import (
             Wav2Vec2FeatureExtractor,
             Wav2Vec2Model,
         )
-        model_name = config['model_params']['speech_tokenizer']['name']
-        output_layer = config['model_params']['speech_tokenizer']['output_layer']
+
+        model_name = config["model_params"]["speech_tokenizer"]["name"]
+        output_layer = config["model_params"]["speech_tokenizer"]["output_layer"]
         wav2vec_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_name)
         wav2vec_model = Wav2Vec2Model.from_pretrained(model_name)
         wav2vec_model.encoder.layers = wav2vec_model.encoder.layers[:output_layer]
@@ -289,14 +343,15 @@ def load_models(args):
 
         def semantic_fn(waves_16k):
             ori_waves_16k_input_list = [
-                waves_16k[bib].cpu().numpy()
-                for bib in range(len(waves_16k))
+                waves_16k[bib].cpu().numpy() for bib in range(len(waves_16k))
             ]
-            ori_inputs = wav2vec_feature_extractor(ori_waves_16k_input_list,
-                                                   return_tensors="pt",
-                                                   return_attention_mask=True,
-                                                   padding=True,
-                                                   sampling_rate=16000).to(device)
+            ori_inputs = wav2vec_feature_extractor(
+                ori_waves_16k_input_list,
+                return_tensors="pt",
+                return_attention_mask=True,
+                padding=True,
+                sampling_rate=16000,
+            ).to(device)
             with torch.no_grad():
                 ori_outputs = wav2vec_model(
                     ori_inputs.input_values.half(),
@@ -307,14 +362,16 @@ def load_models(args):
         raise ValueError(f"Unknown speech tokenizer type: {speech_tokenizer_type}")
     # Generate mel spectrograms
     mel_fn_args = {
-        "n_fft": config['preprocess_params']['spect_params']['n_fft'],
-        "win_size": config['preprocess_params']['spect_params']['win_length'],
-        "hop_size": config['preprocess_params']['spect_params']['hop_length'],
-        "num_mels": config['preprocess_params']['spect_params']['n_mels'],
+        "n_fft": config["preprocess_params"]["spect_params"]["n_fft"],
+        "win_size": config["preprocess_params"]["spect_params"]["win_length"],
+        "hop_size": config["preprocess_params"]["spect_params"]["hop_length"],
+        "num_mels": config["preprocess_params"]["spect_params"]["n_mels"],
         "sampling_rate": sr,
-        "fmin": config['preprocess_params']['spect_params'].get('fmin', 0),
-        "fmax": None if config['preprocess_params']['spect_params'].get('fmax', "None") == "None" else 8000,
-        "center": False
+        "fmin": config["preprocess_params"]["spect_params"].get("fmin", 0),
+        "fmax": None
+        if config["preprocess_params"]["spect_params"].get("fmax", "None") == "None"
+        else 8000,
+        "center": False,
     }
     from modules.audio import mel_spectrogram
 
@@ -329,11 +386,13 @@ def load_models(args):
         mel_fn_args,
     )
 
+
 def printt(strr, *args):
     if len(args) == 0:
         print(strr)
     else:
         print(strr % args)
+
 
 class Config:
     def __init__(self):
@@ -358,9 +417,9 @@ if __name__ == "__main__":
     import torch.nn.functional as F
     import torchaudio.transforms as tat
 
-
     current_dir = os.getcwd()
     n_cpu = cpu_count()
+
     class GUIConfig:
         def __init__(self) -> None:
             self.reference_audio_path: str = ""
@@ -381,7 +440,6 @@ if __name__ == "__main__":
             self.sg_input_device: str = ""
             self.sg_output_device: str = ""
 
-
     class GUI:
         def __init__(self, args) -> None:
             self.gui_config = GUIConfig()
@@ -396,6 +454,7 @@ if __name__ == "__main__":
             self.stream = None
             self.model_set = load_models(args)
             from funasr import AutoModel
+
             self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4")
             self.update_devices()
             self.launcher()
@@ -774,7 +833,7 @@ if __name__ == "__main__":
             if len(values["reference_audio_path"].strip()) == 0:
                 sg.popup("Choose an audio file")
                 return False
-            pattern = re.compile("[^\x00-\x7F]+")
+            pattern = re.compile("[^\x00-\x7f]+")
             if pattern.findall(values["reference_audio_path"]):
                 sg.popup("audio file path contains non-ascii characters")
                 return False
@@ -807,7 +866,8 @@ if __name__ == "__main__":
             else:
                 torch.cuda.empty_cache()
             self.reference_wav, _ = librosa.load(
-                self.gui_config.reference_audio_path, sr=self.model_set[-1]["sampling_rate"]
+                self.gui_config.reference_audio_path,
+                sr=self.model_set[-1]["sampling_rate"],
             )
             self.gui_config.samplerate = (
                 self.model_set[-1]["sampling_rate"]
@@ -850,14 +910,14 @@ if __name__ == "__main__":
                 * self.zc
             )
             self.extra_frame_right = (
-                    int(
-                        np.round(
-                            self.gui_config.extra_time_right
-                            * self.gui_config.samplerate
-                            / self.zc
-                        )
+                int(
+                    np.round(
+                        self.gui_config.extra_time_right
+                        * self.gui_config.samplerate
+                        / self.zc
                     )
-                    * self.zc
+                )
+                * self.zc
             )
             self.input_wav: torch.Tensor = torch.zeros(
                 self.extra_frame
@@ -970,8 +1030,15 @@ if __name__ == "__main__":
                 end_event = torch.cuda.Event(enable_timing=True)
                 torch.cuda.synchronize()
             start_event.record()
-            indata_16k = librosa.resample(indata, orig_sr=self.gui_config.samplerate, target_sr=16000)
-            res = self.vad_model.generate(input=indata_16k, cache=self.vad_cache, is_final=False, chunk_size=self.vad_chunk_size)
+            indata_16k = librosa.resample(
+                indata, orig_sr=self.gui_config.samplerate, target_sr=16000
+            )
+            res = self.vad_model.generate(
+                input=indata_16k,
+                cache=self.vad_cache,
+                is_final=False,
+                chunk_size=self.vad_chunk_size,
+            )
             res_value = res[0]["value"]
             print(res_value)
             if len(res_value) % 2 == 1 and not self.vad_speech_detected:
@@ -1013,13 +1080,21 @@ if __name__ == "__main__":
                 # self.resampler(self.input_wav[-indata.shape[0] - 2 * self.zc :])[
                 #     320:
                 # ]
-                torch.from_numpy(librosa.resample(self.input_wav[-indata.shape[0] - 2 * self.zc :].cpu().numpy(), orig_sr=self.gui_config.samplerate, target_sr=16000)[320:])
+                torch.from_numpy(
+                    librosa.resample(
+                        self.input_wav[-indata.shape[0] - 2 * self.zc :].cpu().numpy(),
+                        orig_sr=self.gui_config.samplerate,
+                        target_sr=16000,
+                    )[320:]
+                )
             )
             print(f"preprocess time: {time.perf_counter() - start_time:.2f}")
             # infer
             if self.function == "vc":
                 if self.gui_config.extra_time_ce - self.gui_config.extra_time < 0:
-                    raise ValueError("Content encoder extra context must be greater than DiT extra context!")
+                    raise ValueError(
+                        "Content encoder extra context must be greater than DiT extra context!"
+                    )
                 if device.type == "mps":
                     start_event = torch.mps.event.Event(enable_timing=True)
                     end_event = torch.mps.event.Event(enable_timing=True)
@@ -1085,7 +1160,7 @@ if __name__ == "__main__":
 
             print(f"sola_offset = {int(sola_offset)}")
 
-            #post_process_start = time.perf_counter()
+            # post_process_start = time.perf_counter()
             infer_wav = infer_wav[sola_offset:]
             infer_wav[: self.sola_buffer_frame] *= self.fade_in_window
             infer_wav[: self.sola_buffer_frame] += (
@@ -1172,14 +1247,24 @@ if __name__ == "__main__":
             ]
             return min(max_input_channels, max_output_channels, 2)
 
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint-path", type=str, default=None, help="Path to the model checkpoint")
-    parser.add_argument("--config-path", type=str, default=None, help="Path to the vocoder checkpoint")
-    parser.add_argument("--fp16", type=str2bool, nargs="?", const=True, help="Whether to use fp16", default=True)
+    parser.add_argument(
+        "--checkpoint-path", type=str, default=None, help="Path to the model checkpoint"
+    )
+    parser.add_argument(
+        "--config-path", type=str, default=None, help="Path to the vocoder checkpoint"
+    )
+    parser.add_argument(
+        "--fp16",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        help="Whether to use fp16",
+        default=True,
+    )
     parser.add_argument("--gpu", type=int, help="Which GPU id to use", default=0)
     args = parser.parse_args()
-    cuda_target = f"cuda:{args.gpu}" if args.gpu else "cuda" 
+    cuda_target = f"cuda:{args.gpu}" if args.gpu else "cuda"
 
     if torch.cuda.is_available():
         device = torch.device(cuda_target)

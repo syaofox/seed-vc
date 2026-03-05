@@ -1,3 +1,5 @@
+from seed_vc.config import *
+
 import os
 import argparse
 import torch
@@ -24,14 +26,19 @@ def load_v2_models(args):
     """Load V2 models using the wrapper from app.py"""
     from hydra.utils import instantiate
     from omegaconf import DictConfig
+
     cfg = DictConfig(yaml.safe_load(open("configs/v2/vc_wrapper.yaml", "r")))
     vc_wrapper = instantiate(cfg)
-    vc_wrapper.load_checkpoints(ar_checkpoint_path=args.ar_checkpoint_path,
-                                cfm_checkpoint_path=args.cfm_checkpoint_path)
+    vc_wrapper.load_checkpoints(
+        ar_checkpoint_path=args.ar_checkpoint_path,
+        cfm_checkpoint_path=args.cfm_checkpoint_path,
+    )
     vc_wrapper.to(device)
     vc_wrapper.eval()
 
-    vc_wrapper.setup_ar_caches(max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device)
+    vc_wrapper.setup_ar_caches(
+        max_batch_size=1, max_seq_len=4096, dtype=dtype, device=device
+    )
 
     if args.compile:
         torch._inductor.config.coordinate_descent_tuning = True
@@ -67,7 +74,7 @@ def convert_voice_v2(source_audio_path, target_audio_path, args):
         anonymization_only=args.anonymization_only,
         device=device,
         dtype=dtype,
-        stream_output=True
+        stream_output=True,
     )
 
     # Collect all outputs from the generator
@@ -105,40 +112,88 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Voice Conversion Inference Script")
-    parser.add_argument("--source", type=str, required=True,
-                        help="Path to source audio file")
-    parser.add_argument("--target", type=str, required=True,
-                        help="Path to target/reference audio file")
-    parser.add_argument("--output", type=str, default="./output",
-                        help="Output directory for converted audio")
-    parser.add_argument("--diffusion-steps", type=int, default=30,
-                        help="Number of diffusion steps")
-    parser.add_argument("--length-adjust", type=float, default=1.0,
-                        help="Length adjustment factor (<1.0 for speed-up, >1.0 for slow-down)")
-    parser.add_argument("--compile", type=bool, default=False,
-                        help="Whether to compile the model for faster inference")
+    parser.add_argument(
+        "--source", type=str, required=True, help="Path to source audio file"
+    )
+    parser.add_argument(
+        "--target", type=str, required=True, help="Path to target/reference audio file"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="./output",
+        help="Output directory for converted audio",
+    )
+    parser.add_argument(
+        "--diffusion-steps", type=int, default=30, help="Number of diffusion steps"
+    )
+    parser.add_argument(
+        "--length-adjust",
+        type=float,
+        default=1.0,
+        help="Length adjustment factor (<1.0 for speed-up, >1.0 for slow-down)",
+    )
+    parser.add_argument(
+        "--compile",
+        type=bool,
+        default=False,
+        help="Whether to compile the model for faster inference",
+    )
 
     # V2 specific arguments
-    parser.add_argument("--intelligibility-cfg-rate", type=float, default=0.7,
-                        help="Intelligibility CFG rate for V2 model")
-    parser.add_argument("--similarity-cfg-rate", type=float, default=0.7,
-                        help="Similarity CFG rate for V2 model")
-    parser.add_argument("--top-p", type=float, default=0.9,
-                        help="Top-p sampling parameter for V2 model")
-    parser.add_argument("--temperature", type=float, default=1.0,
-                        help="Temperature sampling parameter for V2 model")
-    parser.add_argument("--repetition-penalty", type=float, default=1.0,
-                        help="Repetition penalty for V2 model")
-    parser.add_argument("--convert-style", type=str2bool, default=False,
-                        help="Convert style/emotion/accent for V2 model")
-    parser.add_argument("--anonymization-only", type=str2bool, default=False,
-                        help="Anonymization only mode for V2 model")
+    parser.add_argument(
+        "--intelligibility-cfg-rate",
+        type=float,
+        default=0.7,
+        help="Intelligibility CFG rate for V2 model",
+    )
+    parser.add_argument(
+        "--similarity-cfg-rate",
+        type=float,
+        default=0.7,
+        help="Similarity CFG rate for V2 model",
+    )
+    parser.add_argument(
+        "--top-p", type=float, default=0.9, help="Top-p sampling parameter for V2 model"
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Temperature sampling parameter for V2 model",
+    )
+    parser.add_argument(
+        "--repetition-penalty",
+        type=float,
+        default=1.0,
+        help="Repetition penalty for V2 model",
+    )
+    parser.add_argument(
+        "--convert-style",
+        type=str2bool,
+        default=False,
+        help="Convert style/emotion/accent for V2 model",
+    )
+    parser.add_argument(
+        "--anonymization-only",
+        type=str2bool,
+        default=False,
+        help="Anonymization only mode for V2 model",
+    )
 
     # V2 custom checkpoints
-    parser.add_argument("--ar-checkpoint-path", type=str, default=None,
-                        help="Path to custom checkpoint file")
-    parser.add_argument("--cfm-checkpoint-path", type=str, default=None,
-                        help="Path to custom checkpoint file")
+    parser.add_argument(
+        "--ar-checkpoint-path",
+        type=str,
+        default=None,
+        help="Path to custom checkpoint file",
+    )
+    parser.add_argument(
+        "--cfm-checkpoint-path",
+        type=str,
+        default=None,
+        help="Path to custom checkpoint file",
+    )
 
     args = parser.parse_args()
     main(args)

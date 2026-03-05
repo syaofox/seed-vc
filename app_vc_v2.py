@@ -1,3 +1,5 @@
+from seed_vc.config import *
+
 import gradio as gr
 import torch
 import yaml
@@ -308,7 +310,7 @@ def main(args):
             outputs=outputs,
             examples=examples,
             cache_examples=False,
-            allow_flagging="never",  
+            allow_flagging="never",
         )
 
         reload_btn.click(
