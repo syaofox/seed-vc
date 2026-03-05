@@ -1,6 +1,4 @@
-import glob
 import librosa
-import tqdm
 import numpy as np
 import torchaudio
 import torch
@@ -10,11 +8,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-import concurrent.futures
-import os
 import onnxruntime as ort
-import pandas as pd
-from tqdm import tqdm
 
 SAMPLING_RATE = 16000
 INPUT_LENGTH = 9.01

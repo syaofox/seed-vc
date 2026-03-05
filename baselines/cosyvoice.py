@@ -1,7 +1,5 @@
-import os
 import torch
 import sys
-import librosa
 
 sys.path.append("../CosyVoice")
 import sys

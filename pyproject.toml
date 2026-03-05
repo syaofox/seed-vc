@@ -53,17 +53,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 ignore = [
-    "E402", "F401", "E501", "E722", "F403", "E731",
-    "F405",   # star imports 导致的 may be undefined
-    "F841",   # unused local variable
-    "E741",   # ambiguous variable name 'l'
-    "E712",   # == True / == False 比较
-    "F821",   # undefined name
-    "F811",   # redefinition of unused name
-    "E721",   # type comparison using ==
-    "E701",   # multiple statements on one line
-    # 如果还有其他规则报错，继续加进来
-    # "E731",   # lambda assignment（如果你之前有）
+    "E501",     # 行太长（line too long）
+    "W505",     # 文档字符串（docstring）单行过长（doc line too long）
+
 ]
 
 

@@ -1,6 +1,5 @@
 from seed_vc.config import *
 
-import os
 import gradio as gr
 import torch
 import torchaudio

@@ -13,17 +13,14 @@ if sys.platform == "darwin":
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
-import multiprocessing
 import warnings
 import yaml
 
 warnings.simplefilter("ignore")
 
-from tqdm import tqdm
 from modules.commons import *
 import librosa
 import torchaudio
-import torchaudio.compliance.kaldi as kaldi
 
 from hf_utils import load_custom_model_from_hf
 
@@ -367,12 +364,9 @@ class Config:
 
 if __name__ == "__main__":
     import json
-    import multiprocessing
     import re
-    import threading
     import time
-    import traceback
-    from multiprocessing import Queue, cpu_count
+    from multiprocessing import cpu_count
     import argparse
 
     import librosa

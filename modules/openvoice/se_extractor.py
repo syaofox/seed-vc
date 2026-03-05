@@ -1,10 +1,7 @@
 import os
-import glob
-import torch
 import hashlib
 import librosa
 import base64
-from glob import glob
 import numpy as np
 from pydub import AudioSegment
 from faster_whisper import WhisperModel

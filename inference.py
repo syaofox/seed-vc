@@ -4,7 +4,6 @@ import os
 
 import numpy as np
 
-import shutil
 import warnings
 import argparse
 import torch
@@ -13,7 +12,6 @@ import yaml
 warnings.simplefilter("ignore")
 
 # load packages
-import random
 
 from modules.commons import *
 import time

@@ -5,8 +5,6 @@ import sys
 
 import torch
 import torch.multiprocessing as mp
-import random
-import librosa
 import yaml
 import argparse
 import torchaudio

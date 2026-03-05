@@ -1,4 +1,3 @@
-import shutil
 import warnings
 import argparse
 import torch
@@ -9,15 +8,12 @@ import yaml
 warnings.simplefilter("ignore")
 
 # load packages
-import random
 
 from tqdm import tqdm
 from modules.commons import *
-import time
 
 import torchaudio
 import librosa
-import torchaudio.compliance.kaldi as kaldi
 
 from hf_utils import load_custom_model_from_hf
 from resemblyzer import preprocess_wav, VoiceEncoder
