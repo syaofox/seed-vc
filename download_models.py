@@ -32,8 +32,9 @@ import sys
 import argparse
 from pathlib import Path
 
-HF_CACHE = Path("./checkpoints/hf_cache")
+# HF_CACHE = Path("./checkpoints/hf_cache")
 os.environ.setdefault("HF_HUB_CACHE", "./checkpoints/hf_cache")
+HF_CACHE = Path(os.environ.get("HF_HUB_CACHE", "./checkpoints/hf_cache"))
 os.environ.pop("HF_HUB_OFFLINE", None)
 os.environ.pop("HF_ENDPOINT", None)
 HF_CACHE.mkdir(parents=True, exist_ok=True)
