@@ -1,0 +1,25 @@
+services:
+  seed-vc:
+    build: .
+    image: seed-vc:latest
+    container_name: seedvc
+    environment:
+      - SERVICE=${SERVICE:-vc-v1}
+      - PORT=${PORT:-7860}
+      - HF_HUB_OFFLINE=1
+      - HF_HUB_CACHE=/app/checkpoints/hf_cache
+    ports:
+      - "${PORT:-7860}:${PORT:-7860}"
+    volumes:
+      - ./checkpoints:/app/checkpoints:ro
+      - ./runs:/app/runs
+      - ./data:/app/data:ro
+      - ./outputs:/app/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
